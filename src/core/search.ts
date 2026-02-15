@@ -8,6 +8,7 @@ export function searchProject(
   opts: {
     limit: number;
     minScore: number;
+    fullChunk?: boolean;
     highlight?: {
       pre: string;
       post: string;
@@ -19,6 +20,7 @@ export function searchProject(
     return searchBm25(db, query, {
       limit: opts.limit,
       minScore: opts.minScore,
+      fullChunk: opts.fullChunk,
       highlight: opts.highlight
     });
   } finally {

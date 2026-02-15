@@ -54,18 +54,30 @@ export function printSearchHuman(query: string, results: SearchResult[]): void {
   process.stdout.write(`Results for: ${query}\n\n`);
 
   results.forEach((result, idx) => {
-    const sourceLabel =
-      result.source && result.source !== "vector" ? `${result.source} ` : "";
-    const scoreName = result.source === "vector" ? "vscore" : "score";
-    const scoreLabel = result.score.toFixed(3);
     const chunkLabel = `, chunk: ${result.chunkNumber}/${result.chunkCount}`;
-    const header = `=== ${idx + 1}. ${result.path} (line: ${result.line}${chunkLabel}, ${sourceLabel}${scoreName}: ${scoreLabel}) ===`;
+    const scoreInfo = formatScoreInfo(result);
+    const header = `=== ${idx + 1}. ${result.path} (line: ${result.line}${chunkLabel}, ${scoreInfo}) ===`;
     process.stdout.write(`${colors.blue(header)}\n`);
     if (result.snippet.trim().length > 0) {
       process.stdout.write(`${result.snippet}\n`);
     }
     process.stdout.write("\n");
   });
+}
+
+function formatScoreInfo(result: SearchResult): string {
+  if (result.source === "hybrid") {
+    const vectorScore = (result.vectorScore ?? 0).toFixed(3);
+    const bm25Score = (result.bm25Score ?? 0).toFixed(3);
+    return `hybrid: ${result.score.toFixed(3)}, vector: ${vectorScore}, bm25: ${bm25Score}`;
+  }
+  if (result.source === "vector") {
+    return `vscore: ${result.score.toFixed(3)}`;
+  }
+  if (result.source === "bm25") {
+    return `bm25: ${result.score.toFixed(3)}`;
+  }
+  return `score: ${result.score.toFixed(3)}`;
 }
 
 export function printRefreshSummaryHuman(params: { stats: IndexStats; status: StatusInfo }): void {

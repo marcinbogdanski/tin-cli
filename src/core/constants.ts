@@ -14,3 +14,6 @@ export const DEFAULT_EXCLUDE_GLOBS = [
 export const DEFAULT_MAX_RESULTS = 10;
 export const DEFAULT_MIN_SCORE = 0;
 export const DEFAULT_EMBEDDING_MODEL = "text-embedding-3-small";
+export const DEFAULT_HYBRID_CANDIDATE_MULTIPLIER = 4;
+export const DEFAULT_HYBRID_VECTOR_WEIGHT = 0.7;
+export const DEFAULT_HYBRID_TEXT_WEIGHT = 0.3;

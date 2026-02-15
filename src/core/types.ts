@@ -22,6 +22,8 @@ export type SearchResult = {
   chunkNumber: number;
   chunkCount: number;
   score: number;
+  vectorScore?: number;
+  bm25Score?: number;
   snippet: string;
   source?: "bm25" | "vector" | "hybrid";
 };

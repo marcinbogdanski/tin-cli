@@ -4,6 +4,11 @@ import type { ProjectPaths } from "./project.js";
 import type { SearchResult } from "./types.js";
 import { getRerankConfigFromEnv, rerankDocuments } from "../providers/rerank.js";
 import { TinError } from "./errors.js";
+import {
+  DEFAULT_HYBRID_CANDIDATE_MULTIPLIER,
+  DEFAULT_HYBRID_TEXT_WEIGHT,
+  DEFAULT_HYBRID_VECTOR_WEIGHT
+} from "./constants.js";
 
 export type QueryOutput = {
   results: SearchResult[];
@@ -24,11 +29,12 @@ export async function queryProject(
   }
 ): Promise<QueryOutput> {
   const warnings: string[] = [];
-  const candidateLimit = Math.max(opts.limit * 4, opts.limit);
+  const candidateLimit = Math.max(opts.limit * DEFAULT_HYBRID_CANDIDATE_MULTIPLIER, opts.limit);
 
   const bm25 = searchProject(project, query, {
     limit: candidateLimit,
     minScore: 0,
+    fullChunk: true,
     highlight: opts.highlight
   }).map((r) => ({ ...r, source: "bm25" as const }));
 
@@ -36,7 +42,8 @@ export async function queryProject(
   try {
     vector = await vectorSearchProject(project, query, {
       limit: candidateLimit,
-      minScore: 0
+      minScore: 0,
+      fullChunk: true
     });
   } catch (err) {
     if (err instanceof TinError && err.message.includes("Embedding is not configured")) {
@@ -56,7 +63,12 @@ export async function queryProject(
     };
   }
 
-  const fused = reciprocalRankFusion([bm25, vector], 60)
+  const fused = weightedHybridMerge({
+    vector,
+    keyword: bm25,
+    vectorWeight: DEFAULT_HYBRID_VECTOR_WEIGHT,
+    textWeight: DEFAULT_HYBRID_TEXT_WEIGHT
+  })
     .map((r) => ({ ...r, source: "hybrid" as const }))
     .filter((r) => r.score >= opts.minScore);
 
@@ -124,32 +136,60 @@ export async function queryProject(
   }
 }
 
-function reciprocalRankFusion(lists: SearchResult[][], k: number): SearchResult[] {
-  const byId = new Map<string, SearchResult & { _rrf: number }>();
+function weightedHybridMerge(params: {
+  vector: SearchResult[];
+  keyword: SearchResult[];
+  vectorWeight: number;
+  textWeight: number;
+}): SearchResult[] {
+  const byId = new Map<
+    string,
+    SearchResult & {
+      vectorScore: number;
+      bm25Score: number;
+    }
+  >();
 
-  lists.forEach((list) => {
-    list.forEach((result, idx) => {
-      const key = keyForResult(result);
-      const contribution = 1 / (k + idx + 1);
-      const existing = byId.get(key);
-      if (existing) {
-        existing._rrf += contribution;
-      } else {
-        byId.set(key, {
-          ...result,
-          _rrf: contribution
-        });
-      }
+  for (const result of params.vector) {
+    byId.set(keyForResult(result), {
+      ...result,
+      vectorScore: result.score,
+      bm25Score: 0
     });
-  });
+  }
 
-  const ranked = Array.from(byId.values()).sort((a, b) => b._rrf - a._rrf);
-  const maxScore = ranked[0]?._rrf ?? 1;
+  for (const result of params.keyword) {
+    const key = keyForResult(result);
+    const existing = byId.get(key);
+    if (existing) {
+      existing.bm25Score = result.score;
+      existing.line = result.line;
+      if (result.snippet.trim().length > 0) {
+        existing.snippet = result.snippet;
+      }
+    } else {
+      byId.set(key, {
+        ...result,
+        vectorScore: 0,
+        bm25Score: result.score
+      });
+    }
+  }
 
-  return ranked.map(({ _rrf, ...rest }) => ({
-    ...rest,
-    score: _rrf / maxScore
-  }));
+  const vectorWeight = Math.max(0, params.vectorWeight);
+  const textWeight = Math.max(0, params.textWeight);
+  const weightSum = vectorWeight + textWeight;
+  const normalizedVectorWeight = weightSum > 0 ? vectorWeight / weightSum : 0.7;
+  const normalizedTextWeight = weightSum > 0 ? textWeight / weightSum : 0.3;
+
+  return Array.from(byId.values())
+    .map(({ vectorScore, bm25Score, ...result }) => ({
+      ...result,
+      vectorScore,
+      bm25Score,
+      score: normalizedVectorWeight * vectorScore + normalizedTextWeight * bm25Score
+    }))
+    .sort((a, b) => b.score - a.score);
 }
 
 function keyForResult(result: Pick<SearchResult, "path" | "startLine" | "endLine">): string {

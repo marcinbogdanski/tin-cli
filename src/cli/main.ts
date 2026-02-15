@@ -106,6 +106,7 @@ export async function run(argv: string[] = process.argv): Promise<void> {
         const results = searchProject(project, query, {
           limit: opts.maxResults,
           minScore: opts.minScore,
+          fullChunk: true,
           highlight
         });
 
