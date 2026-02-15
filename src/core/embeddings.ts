@@ -17,7 +17,9 @@ export async function embedMissingChunks(
 ): Promise<{ embedded: number; model: string }> {
   const config = getEmbeddingConfigFromEnv();
   if (!config) {
-    throw new TinError("Embedding is not configured. Set TIN_EMBEDDING_API_KEY.");
+    throw new TinError(
+      "Embedding is not configured. Set TIN_EMBEDDING_API_KEY (or OPENAI_API_KEY for openai provider)."
+    );
   }
 
   const batchSize = options?.batchSize ?? 32;
@@ -58,7 +60,9 @@ export async function embedMissingChunks(
 export async function embedQuery(query: string): Promise<{ vector: number[]; model: string }> {
   const config = getEmbeddingConfigFromEnv();
   if (!config) {
-    throw new TinError("Embedding is not configured. Set TIN_EMBEDDING_API_KEY.");
+    throw new TinError(
+      "Embedding is not configured. Set TIN_EMBEDDING_API_KEY (or OPENAI_API_KEY for openai provider)."
+    );
   }
 
   const vectors = await embedTexts(config, [query]);

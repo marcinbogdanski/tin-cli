@@ -242,6 +242,7 @@ describe("tin CLI integration", () => {
     assert.equal(runTin(["index"], workspace).code, 0);
 
     const res = runTin(["status"], workspace, {
+      TIN_EMBEDDING_PROVIDER: "openai",
       TIN_EMBEDDING_BASE_URL: "https://example.invalid/v1/",
       TIN_EMBEDDING_MODEL: "mock-embed-v2",
       TIN_EMBEDDING_API_KEY: "sk-test-abcdef"
@@ -254,9 +255,13 @@ describe("tin CLI integration", () => {
     assert.match(res.stdout, /Indexed files: 2/);
     assert.match(res.stdout, /Indexed chunks: /);
     assert.match(res.stdout, /Indexed time: /);
-    assert.match(res.stdout, /Embedding API URL: https:\/\/example\.invalid\/v1 \(env var\)/);
-    assert.match(res.stdout, /Embedding model name: mock-embed-v2 \(env var\)/);
-    assert.match(res.stdout, /Embedding API key: sk-tes\.\.\. \(env var\)/);
+    assert.match(res.stdout, /Embedding provider: openai \(env var: TIN_EMBEDDING_PROVIDER\)/);
+    assert.match(
+      res.stdout,
+      /Embedding API URL: https:\/\/example\.invalid\/v1 \(env var: TIN_EMBEDDING_BASE_URL\)/
+    );
+    assert.match(res.stdout, /Embedding model name: mock-embed-v2 \(env var: TIN_EMBEDDING_MODEL\)/);
+    assert.match(res.stdout, /Embedding API key: sk-tes\.\.\. \(env var: TIN_EMBEDDING_API_KEY\)/);
     assert.match(res.stdout, /Embedded chunks: 0 \/ /);
   });
 
@@ -281,6 +286,37 @@ describe("tin CLI integration", () => {
       const statusJson = JSON.parse(status.stdout) as { embeddedChunks: number; needsEmbedding: number };
       assert.ok(statusJson.embeddedChunks >= 2);
       assert.equal(statusJson.needsEmbedding, 0);
+    });
+  });
+
+  it("supports OPENAI_* fallback for openai embedding provider", async () => {
+    await withMockEmbeddingServer(async (env) => {
+      const fallbackEnv: NodeJS.ProcessEnv = {
+        TIN_EMBEDDING_PROVIDER: "openai",
+        TIN_EMBEDDING_MODEL: env.TIN_EMBEDDING_MODEL,
+        OPENAI_API_KEY: env.TIN_EMBEDDING_API_KEY,
+        OPENAI_BASE_URL: env.TIN_EMBEDDING_BASE_URL
+      };
+
+      assert.equal((await runTinAsync(["init"], workspace, fallbackEnv)).code, 0);
+
+      const index = await runTinAsync(["index", "--embed", "--json"], workspace, fallbackEnv);
+      assert.equal(index.code, 0, index.stderr);
+      const stats = JSON.parse(index.stdout) as { embedded: number; embeddingModel: string };
+      assert.ok(stats.embedded >= 2);
+      assert.equal(stats.embeddingModel, "mock-embed-v1");
+
+      const vsearch = await runTinAsync(["vsearch", "alpha", "--json"], workspace, fallbackEnv);
+      assert.equal(vsearch.code, 0, vsearch.stderr);
+      const results = JSON.parse(vsearch.stdout) as Array<{ path: string }>;
+      assert.ok(results.length >= 1);
+      assert.equal(results[0]?.path, "docs/a.md");
+
+      const status = await runTinAsync(["status"], workspace, fallbackEnv);
+      assert.equal(status.code, 0, status.stderr);
+      assert.match(status.stdout, /Embedding provider: openai \(env var: TIN_EMBEDDING_PROVIDER\)/);
+      assert.match(status.stdout, /Embedding API URL: .* \(env var: OPENAI_BASE_URL\)/);
+      assert.match(status.stdout, /Embedding API key: test-k\.\.\. \(env var: OPENAI_API_KEY\)/);
     });
   });
 

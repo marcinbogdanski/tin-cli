@@ -66,6 +66,8 @@ export function printStatusHuman(status: StatusInfo): void {
   process.stdout.write(`Indexed chunks: ${status.indexedChunks}\n`);
   process.stdout.write(`Indexed time: ${status.lastIndexedAt ?? "never"}\n`);
 
+  const embeddingProviderName = status.embeddingProviderName ?? "openai";
+  const embeddingProviderSource = status.embeddingProviderSource ?? "default";
   const embeddingApiUrl = status.embeddingApiUrl ?? "https://api.openai.com/v1";
   const embeddingApiUrlSource = status.embeddingApiUrlSource ?? "default";
   const embeddingModelName = status.embeddingModelName ?? "text-embedding-3-small";
@@ -73,6 +75,7 @@ export function printStatusHuman(status: StatusInfo): void {
   const embeddingApiKeyPreview = status.embeddingApiKeyPreview ?? "unset";
   const embeddingApiKeySource = status.embeddingApiKeySource ?? "unset";
 
+  process.stdout.write(`Embedding provider: ${embeddingProviderName} (${embeddingProviderSource})\n`);
   process.stdout.write(`Embedding API URL: ${embeddingApiUrl} (${embeddingApiUrlSource})\n`);
   process.stdout.write(`Embedding model name: ${embeddingModelName} (${embeddingModelSource})\n`);
   process.stdout.write(`Embedding API key: ${embeddingApiKeyPreview} (${embeddingApiKeySource})\n`);

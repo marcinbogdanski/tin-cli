@@ -1,25 +1,92 @@
 import { DEFAULT_EMBEDDING_MODEL } from "../core/constants.js";
 import { TinError } from "../core/errors.js";
 
+const DEFAULT_EMBEDDING_BASE_URL = "https://api.openai.com/v1";
+
+export type EmbeddingProvider = "openai";
+
 export type EmbeddingConfig = {
+  provider: EmbeddingProvider;
   apiKey: string;
   baseUrl: string;
   model: string;
 };
 
+export type EmbeddingResolvedSettings = {
+  provider: EmbeddingProvider;
+  providerSource: string;
+  apiKey: string | null;
+  apiKeySource: string;
+  baseUrl: string;
+  baseUrlSource: string;
+  model: string;
+  modelSource: string;
+};
+
+function readEnv(name: string): string | null {
+  const value = process.env[name]?.trim();
+  return value ? value : null;
+}
+
+export function resolveEmbeddingSettingsFromEnv(): EmbeddingResolvedSettings {
+  const rawProvider = readEnv("TIN_EMBEDDING_PROVIDER");
+  const providerValue = (rawProvider ?? "openai").toLowerCase();
+  if (providerValue !== "openai") {
+    throw new TinError(
+      `Unsupported embedding provider '${providerValue}'. Supported providers: openai.`
+    );
+  }
+
+  const providerSource = rawProvider ? "env var: TIN_EMBEDDING_PROVIDER" : "default";
+  const provider: EmbeddingProvider = "openai";
+
+  const tinApiKey = readEnv("TIN_EMBEDDING_API_KEY");
+  const openaiApiKey = readEnv("OPENAI_API_KEY");
+  const apiKey = tinApiKey ?? openaiApiKey;
+  const apiKeySource = tinApiKey
+    ? "env var: TIN_EMBEDDING_API_KEY"
+    : openaiApiKey
+      ? "env var: OPENAI_API_KEY"
+      : "unset";
+
+  const tinBaseUrl = readEnv("TIN_EMBEDDING_BASE_URL");
+  const openaiBaseUrl = readEnv("OPENAI_BASE_URL");
+  const baseUrl = (tinBaseUrl ?? openaiBaseUrl ?? DEFAULT_EMBEDDING_BASE_URL).replace(/\/$/, "");
+  const baseUrlSource = tinBaseUrl
+    ? "env var: TIN_EMBEDDING_BASE_URL"
+    : openaiBaseUrl
+      ? "env var: OPENAI_BASE_URL"
+      : "default";
+
+  const model = readEnv("TIN_EMBEDDING_MODEL") ?? DEFAULT_EMBEDDING_MODEL;
+  const modelSource = readEnv("TIN_EMBEDDING_MODEL")
+    ? "env var: TIN_EMBEDDING_MODEL"
+    : "default";
+
+  return {
+    provider,
+    providerSource,
+    apiKey,
+    apiKeySource,
+    baseUrl,
+    baseUrlSource,
+    model,
+    modelSource
+  };
+}
+
 export function getEmbeddingConfigFromEnv(): EmbeddingConfig | null {
-  const apiKey = process.env.TIN_EMBEDDING_API_KEY?.trim();
+  const resolved = resolveEmbeddingSettingsFromEnv();
+  const apiKey = resolved.apiKey;
   if (!apiKey) {
     return null;
   }
 
-  const baseUrl = (process.env.TIN_EMBEDDING_BASE_URL?.trim() || "https://api.openai.com/v1").replace(/\/$/, "");
-  const model = process.env.TIN_EMBEDDING_MODEL?.trim() || DEFAULT_EMBEDDING_MODEL;
-
   return {
+    provider: resolved.provider,
     apiKey,
-    baseUrl,
-    model
+    baseUrl: resolved.baseUrl,
+    model: resolved.model
   };
 }
 

@@ -29,13 +29,23 @@ Local CLI search for project documents with BM25, vector search, and hybrid retr
 - Project config at `.tin/config.json` (include/exclude globs)
 - SQLite index at `.tin/index.sqlite` (built-in `node:sqlite`)
 - Embedding support (OpenAI-compatible `/embeddings` API):
+  - `TIN_EMBEDDING_PROVIDER` (optional, default `openai`)
   - `TIN_EMBEDDING_API_KEY`
   - `TIN_EMBEDDING_BASE_URL` (optional, default `https://api.openai.com/v1`)
   - `TIN_EMBEDDING_MODEL` (optional)
+  - For `TIN_EMBEDDING_PROVIDER=openai`, fallback aliases are supported:
+    - `OPENAI_API_KEY`
+    - `OPENAI_BASE_URL`
 - Optional rerank support (OpenAI-compatible `/rerank` API):
   - `TIN_RERANK_API_KEY`
   - `TIN_RERANK_BASE_URL` (optional, default `https://api.openai.com/v1`)
   - `TIN_RERANK_MODEL` (optional)
+
+Embedding configuration precedence:
+
+1. `TIN_*` env vars
+2. Provider aliases (currently `OPENAI_*` for `openai`)
+3. Built-in defaults
 
 ## Planned Next Features
 
