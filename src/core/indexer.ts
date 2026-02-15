@@ -1,7 +1,7 @@
 import { readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import fg from "fast-glob";
-import { chunkByChars, normalizeLineEndings } from "./chunks.js";
+import { chunkByHeuristicTokens, normalizeLineEndings } from "./chunks.js";
 import { embedMissingChunks, hasEmbeddingConfiguration } from "./embeddings.js";
 import { hashContent } from "./hash.js";
 import type { TinConfig, IndexStats } from "./types.js";
@@ -19,7 +19,7 @@ function normalizeRelativePath(path: string): string {
   return path.replace(/\\/g, "/");
 }
 
-const CHUNKING_HASH_VERSION = "chars-v1";
+const CHUNKING_HASH_VERSION = "heuristic-tokens-v1";
 
 export async function indexProject(
   project: ProjectPaths,
@@ -123,7 +123,7 @@ export async function indexProject(
         continue;
       }
 
-      const chunks = chunkByChars(normalizedContent);
+      const chunks = chunkByHeuristicTokens(normalizedContent);
       upsertFileAndChunks(db, {
         path: relPath,
         hash,

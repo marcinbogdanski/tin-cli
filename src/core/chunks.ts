@@ -5,25 +5,27 @@ export type Chunk = {
   text: string;
 };
 
-export const DEFAULT_CHUNK_MAX_CHARS = 3200;
-export const DEFAULT_CHUNK_OVERLAP_CHARS = 480;
+export const HEURISTIC_CHARS_PER_TOKEN = 4;
+export const DEFAULT_CHUNK_TOKENS = 400;
+export const DEFAULT_CHUNK_OVERLAP_TOKENS = 80;
 
 export function normalizeLineEndings(content: string): string {
   return content.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
 }
 
-export function chunkByChars(
+export function chunkByHeuristicTokens(
   content: string,
-  maxChars: number = DEFAULT_CHUNK_MAX_CHARS,
-  overlapChars: number = DEFAULT_CHUNK_OVERLAP_CHARS
+  chunkTokens: number = DEFAULT_CHUNK_TOKENS,
+  overlapTokens: number = DEFAULT_CHUNK_OVERLAP_TOKENS
 ): Chunk[] {
   const normalized = normalizeLineEndings(content);
   if (normalized.length === 0) {
     return [];
   }
 
-  const size = Math.max(1, Math.floor(maxChars));
-  const overlap = Math.max(0, Math.min(Math.floor(overlapChars), size - 1));
+  const size = Math.max(32, Math.floor(chunkTokens) * HEURISTIC_CHARS_PER_TOKEN);
+  const overlapChars = Math.max(0, Math.floor(overlapTokens) * HEURISTIC_CHARS_PER_TOKEN);
+  const overlap = Math.max(0, Math.min(overlapChars, size - 1));
   const lineStarts = computeLineStartOffsets(normalized);
 
   const chunks: Chunk[] = [];

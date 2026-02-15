@@ -1,10 +1,10 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { chunkByChars, normalizeLineEndings } from "../src/core/chunks.js";
+import { chunkByHeuristicTokens, normalizeLineEndings } from "../src/core/chunks.js";
 
-describe("chunkByChars", () => {
+describe("chunkByHeuristicTokens", () => {
   it("creates at least one chunk for non-empty text", () => {
-    const chunks = chunkByChars("line1\nline2\nline3");
+    const chunks = chunkByHeuristicTokens("line1\nline2\nline3");
     assert.equal(chunks.length, 1);
     assert.equal(chunks[0]?.startLine, 1);
     assert.equal(chunks[0]?.endLine, 3);
@@ -12,7 +12,7 @@ describe("chunkByChars", () => {
 
   it("splits long content with overlap", () => {
     const text = "x".repeat(3000);
-    const chunks = chunkByChars(text, 1000, 100);
+    const chunks = chunkByHeuristicTokens(text, 200, 20);
     assert.ok(chunks.length > 1);
     assert.equal(chunks[0]?.startLine, 1);
     assert.equal(chunks[1]?.startLine, 1);
@@ -20,7 +20,7 @@ describe("chunkByChars", () => {
 
   it("normalizes windows line endings before chunking", () => {
     const raw = "a\r\nb\r\nc\r\nd";
-    const chunks = chunkByChars(raw, 100, 0);
+    const chunks = chunkByHeuristicTokens(raw, 100, 0);
     assert.equal(chunks.length, 1);
     assert.equal(chunks[0]?.text, "a\nb\nc\nd");
   });
