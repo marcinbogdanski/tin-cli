@@ -24,7 +24,7 @@ const CHUNKING_HASH_VERSION = "chars-v1";
 export async function indexProject(
   project: ProjectPaths,
   config: TinConfig,
-  options?: { embed?: boolean }
+  options?: { embed?: boolean; force?: boolean; reembed?: boolean }
 ): Promise<IndexStats> {
   const db = openDatabase(project.dbPath);
   const stats: IndexStats = {
@@ -79,6 +79,7 @@ export async function indexProject(
 
       if (
         existing &&
+        !options?.force &&
         hasCurrentChunkingHash &&
         existing.mtimeMs === mtimeMs &&
         existing.sizeBytes === sizeBytes
@@ -111,7 +112,7 @@ export async function indexProject(
       }
 
       const hash = `${CHUNKING_HASH_VERSION}:${hashContent(normalizedContent)}`;
-      if (existing && existing.hash === hash) {
+      if (existing && !options?.force && existing.hash === hash) {
         updateFileMetadata(db, {
           path: relPath,
           mtimeMs,
@@ -144,9 +145,12 @@ export async function indexProject(
     closeDatabase(db);
   }
 
-  const shouldEmbed = options?.embed === true || hasEmbeddingConfiguration();
-  if (shouldEmbed) {
-    const result = await embedMissingChunks(project);
+  const embeddingConfigured = hasEmbeddingConfiguration();
+  const shouldEmbed = options?.embed === true || embeddingConfigured;
+  if (shouldEmbed && embeddingConfigured) {
+    const result = await embedMissingChunks(project, {
+      force: options?.reembed === true
+    });
     stats.embedded = result.embedded;
     stats.embeddingModel = result.model;
   }

@@ -4,6 +4,7 @@ import { loadConfig } from "../core/config.js";
 import { TinError } from "../core/errors.js";
 import { indexProject } from "../core/indexer.js";
 import { initProject, requireProject } from "../core/project.js";
+import type { ProjectPaths } from "../core/project.js";
 import { queryProject } from "../core/query.js";
 import { searchProject } from "../core/search.js";
 import { getProjectStatus } from "../core/status.js";
@@ -60,14 +61,13 @@ export async function run(argv: string[] = process.argv): Promise<void> {
 
   program
     .command("index")
-    .description("Index project files")
-    .option("--embed", "Force embedding pass after indexing")
+    .description("Index project files (always runs embedding pass when configured)")
     .option("--json", "Output JSON")
-    .action(async (opts: { json?: boolean; embed?: boolean }) => {
+    .action(async (opts: { json?: boolean }) => {
       const project = requireProject(process.cwd());
       const config = loadConfig(project.configPath);
       const stats = await indexProject(project, config, {
-        embed: Boolean(opts.embed)
+        embed: true
       });
 
       if (opts.json) {
@@ -86,7 +86,7 @@ export async function run(argv: string[] = process.argv): Promise<void> {
     .option("-n, --max-results <n>", "Max results", parsePositiveInt, DEFAULT_MAX_RESULTS)
     .option("--min-score <score>", "Minimum score", parseNonNegativeFloat, DEFAULT_MIN_SCORE)
     .action(
-      (
+      async (
         query: string,
         opts: { json?: boolean; files?: boolean; maxResults: number; minScore: number }
       ) => {
@@ -95,6 +95,7 @@ export async function run(argv: string[] = process.argv): Promise<void> {
         }
 
         const project = requireProject(process.cwd());
+        await refreshBeforeSearch(project);
         const results = searchProject(project, query, {
           limit: opts.maxResults,
           minScore: opts.minScore
@@ -130,6 +131,7 @@ export async function run(argv: string[] = process.argv): Promise<void> {
         }
 
         const project = requireProject(process.cwd());
+        await refreshBeforeSearch(project);
         const results = await vectorSearchProject(project, query, {
           limit: opts.maxResults,
           minScore: opts.minScore,
@@ -173,6 +175,7 @@ export async function run(argv: string[] = process.argv): Promise<void> {
         }
 
         const project = requireProject(process.cwd());
+        await refreshBeforeSearch(project);
         const output = await queryProject(project, query, {
           limit: opts.maxResults,
           minScore: opts.minScore,
@@ -212,6 +215,15 @@ export async function run(argv: string[] = process.argv): Promise<void> {
   } catch (err) {
     handleError(err);
   }
+}
+
+async function refreshBeforeSearch(project: ProjectPaths): Promise<void> {
+  const config = loadConfig(project.configPath);
+  await indexProject(project, config, {
+    force: true,
+    embed: true,
+    reembed: true
+  });
 }
 
 function printWarnings(warnings: string[]): void {

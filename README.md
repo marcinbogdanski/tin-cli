@@ -17,11 +17,12 @@ Local CLI search for project documents with BM25, vector search, and hybrid retr
 ## Implemented Now
 
 - `tin init`
-- `tin index` (incremental using mtime + hash)
+- `tin index` (incremental using mtime + hash; always runs embedding pass when configured)
 - `tin search <query>` (BM25 + snippets)
 - `tin status`
 - `tin vsearch <query>` (requires embedding API env)
 - `tin query <query>` (hybrid BM25+vector with optional rerank)
+- `search`/`vsearch`/`query` currently force a full index refresh before searching; when embedding is configured they also force full re-embedding
 - Output modes:
   - human
   - `--json`

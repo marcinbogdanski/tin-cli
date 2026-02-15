@@ -216,6 +216,13 @@ export function upsertEmbeddings(
   });
 }
 
+export function deleteEmbeddingsForModel(db: DatabaseSync, model: string): number {
+  const result = db.prepare("DELETE FROM embeddings WHERE model = ?").run(model) as {
+    changes?: number;
+  };
+  return result.changes ?? 0;
+}
+
 export function searchBm25(db: DatabaseSync, query: string, opts: SearchOptions): SearchResult[] {
   const ftsQuery = buildFtsQuery(query);
   if (!ftsQuery) {

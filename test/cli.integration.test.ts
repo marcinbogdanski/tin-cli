@@ -284,7 +284,7 @@ describe("tin CLI integration", () => {
 
       assert.equal((await runTinAsync(["init"], workspace, env)).code, 0);
 
-      const index = await runTinAsync(["index", "--embed", "--json"], workspace, env);
+      const index = await runTinAsync(["index", "--json"], workspace, env);
       assert.equal(index.code, 0, index.stderr);
       const stats = JSON.parse(index.stdout) as { embedded: number; embeddingModel: string };
       assert.ok(stats.embedded >= 2);
@@ -316,7 +316,7 @@ describe("tin CLI integration", () => {
 
       assert.equal((await runTinAsync(["init"], workspace, fallbackEnv)).code, 0);
 
-      const index = await runTinAsync(["index", "--embed", "--json"], workspace, fallbackEnv);
+      const index = await runTinAsync(["index", "--json"], workspace, fallbackEnv);
       assert.equal(index.code, 0, index.stderr);
       const stats = JSON.parse(index.stdout) as { embedded: number; embeddingModel: string };
       assert.ok(stats.embedded >= 2);
@@ -358,7 +358,7 @@ describe("tin CLI integration", () => {
   it("query returns hybrid results and supports rerank", async () => {
     await withMockEmbeddingServer(async (env) => {
       assert.equal((await runTinAsync(["init"], workspace, env)).code, 0);
-      assert.equal((await runTinAsync(["index", "--embed"], workspace, env)).code, 0);
+      assert.equal((await runTinAsync(["index"], workspace, env)).code, 0);
 
       const res = await runTinAsync(["query", "alpha", "--json"], workspace, env);
       assert.equal(res.code, 0, res.stderr);

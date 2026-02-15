@@ -1,6 +1,12 @@
 import type { ProjectPaths } from "./project.js";
 import { TinError } from "./errors.js";
-import { closeDatabase, listChunksMissingEmbeddings, openDatabase, upsertEmbeddings } from "../storage/db.js";
+import {
+  closeDatabase,
+  deleteEmbeddingsForModel,
+  listChunksMissingEmbeddings,
+  openDatabase,
+  upsertEmbeddings
+} from "../storage/db.js";
 import { embedTexts, getEmbeddingConfigFromEnv } from "../providers/embedding.js";
 
 export function hasEmbeddingConfiguration(): boolean {
@@ -13,7 +19,7 @@ export function getConfiguredEmbeddingModel(): string | null {
 
 export async function embedMissingChunks(
   project: ProjectPaths,
-  options?: { batchSize?: number }
+  options?: { batchSize?: number; force?: boolean }
 ): Promise<{ embedded: number; model: string }> {
   const config = getEmbeddingConfigFromEnv();
   if (!config) {
@@ -26,6 +32,10 @@ export async function embedMissingChunks(
   const db = openDatabase(project.dbPath);
 
   try {
+    if (options?.force) {
+      deleteEmbeddingsForModel(db, config.model);
+    }
+
     let embedded = 0;
 
     while (true) {
