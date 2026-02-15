@@ -13,14 +13,23 @@ export type QueryOutput = {
 export async function queryProject(
   project: ProjectPaths,
   query: string,
-  opts: { limit: number; minScore: number; useRerank?: boolean }
+  opts: {
+    limit: number;
+    minScore: number;
+    useRerank?: boolean;
+    highlight?: {
+      pre: string;
+      post: string;
+    };
+  }
 ): Promise<QueryOutput> {
   const warnings: string[] = [];
   const candidateLimit = Math.max(opts.limit * 4, opts.limit);
 
   const bm25 = searchProject(project, query, {
     limit: candidateLimit,
-    minScore: 0
+    minScore: 0,
+    highlight: opts.highlight
   }).map((r) => ({ ...r, source: "bm25" as const }));
 
   let vector: SearchResult[] = [];

@@ -2,6 +2,15 @@ import { createColors } from "picocolors";
 import type { IndexStats, SearchResult, StatusInfo } from "../core/types.js";
 
 const colors = createColors(resolveColorEnabled());
+const HIGHLIGHT_START = "\u001b[33m";
+const HIGHLIGHT_END = "\u001b[0m";
+
+export function getHumanHighlightMarkers(): { pre: string; post: string } {
+  if (!resolveColorEnabled()) {
+    return { pre: "", post: "" };
+  }
+  return { pre: HIGHLIGHT_START, post: HIGHLIGHT_END };
+}
 
 export function printJson(data: unknown): void {
   process.stdout.write(`${JSON.stringify(data, null, 2)}\n`);

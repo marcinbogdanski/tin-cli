@@ -10,6 +10,7 @@ import { searchProject } from "../core/search.js";
 import { getProjectStatus } from "../core/status.js";
 import { vectorSearchProject } from "../core/vector-search.js";
 import {
+  getHumanHighlightMarkers,
   printFiles,
   printIndexHuman,
   printInitHuman,
@@ -101,9 +102,11 @@ export async function run(argv: string[] = process.argv): Promise<void> {
         if (!opts.json && !opts.files) {
           printRefreshSummaryHuman(refresh);
         }
+        const highlight = !opts.json && !opts.files ? getHumanHighlightMarkers() : undefined;
         const results = searchProject(project, query, {
           limit: opts.maxResults,
-          minScore: opts.minScore
+          minScore: opts.minScore,
+          highlight
         });
 
         if (opts.json) {
@@ -187,10 +190,12 @@ export async function run(argv: string[] = process.argv): Promise<void> {
         if (!opts.json && !opts.files) {
           printRefreshSummaryHuman(refresh);
         }
+        const highlight = !opts.json && !opts.files ? getHumanHighlightMarkers() : undefined;
         const output = await queryProject(project, query, {
           limit: opts.maxResults,
           minScore: opts.minScore,
-          useRerank: opts.rerank !== false
+          useRerank: opts.rerank !== false,
+          highlight
         });
 
         printWarnings(output.warnings);

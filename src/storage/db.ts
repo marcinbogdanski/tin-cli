@@ -15,6 +15,10 @@ export type SearchOptions = {
   limit: number;
   minScore: number;
   fullChunk?: boolean;
+  highlight?: {
+    pre: string;
+    post: string;
+  };
 };
 
 export type PendingEmbeddingChunk = {
@@ -229,34 +233,42 @@ export function searchBm25(db: DatabaseSync, query: string, opts: SearchOptions)
     return [];
   }
 
-  const rows = db
-    .prepare(
-      `SELECT
-         c.path,
-         c.chunk_index,
-         counts.chunk_count,
-         c.start_line,
-         c.end_line,
-         c.content,
-         bm25(chunks_fts) AS bm25_score
-       FROM chunks_fts
-       JOIN chunks c ON c.id = chunks_fts.rowid
-       JOIN (
-         SELECT path, COUNT(*) AS chunk_count
-         FROM chunks
-         GROUP BY path
-       ) counts ON counts.path = c.path
-       WHERE chunks_fts MATCH ?
-       ORDER BY bm25_score ASC
-       LIMIT ?`
-    )
-    .all(ftsQuery, opts.limit) as Array<{
+  const useHighlight = Boolean(opts.highlight);
+  const highlightedContentSql = useHighlight
+    ? "highlight(chunks_fts, 1, ?, ?) AS display_content"
+    : "c.content AS display_content";
+  const statement = db.prepare(
+    `SELECT
+       c.path,
+       c.chunk_index,
+       counts.chunk_count,
+       c.start_line,
+       c.end_line,
+       c.content AS raw_content,
+       ${highlightedContentSql},
+       bm25(chunks_fts) AS bm25_score
+     FROM chunks_fts
+     JOIN chunks c ON c.id = chunks_fts.rowid
+     JOIN (
+       SELECT path, COUNT(*) AS chunk_count
+       FROM chunks
+       GROUP BY path
+     ) counts ON counts.path = c.path
+     WHERE chunks_fts MATCH ?
+     ORDER BY bm25_score ASC
+     LIMIT ?`
+  );
+
+  const rows = (useHighlight
+    ? statement.all(opts.highlight?.pre ?? "", opts.highlight?.post ?? "", ftsQuery, opts.limit)
+    : statement.all(ftsQuery, opts.limit)) as Array<{
     path: string;
     chunk_index: number;
     chunk_count: number;
     start_line: number;
     end_line: number;
-    content: string;
+    raw_content: string;
+    display_content: string;
     bm25_score: number;
   }>;
 
@@ -269,9 +281,11 @@ export function searchBm25(db: DatabaseSync, query: string, opts: SearchOptions)
       continue;
     }
 
-    const lineOffset = findBestLineOffset(row.content, terms);
+    const lineOffset = findBestLineOffset(row.raw_content, terms);
     const line = row.start_line + lineOffset;
-    const snippet = makeSnippet(row.content, lineOffset);
+    const snippet = opts.fullChunk
+      ? row.display_content
+      : makeSnippet(row.display_content, lineOffset);
 
     out.push({
       path: row.path,
