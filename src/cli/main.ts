@@ -14,9 +14,11 @@ import {
   printIndexHuman,
   printInitHuman,
   printJson,
+  printRefreshSummaryHuman,
   printSearchHuman,
   printStatusHuman
 } from "../output/format.js";
+import type { IndexStats, StatusInfo } from "../core/types.js";
 
 const VERSION = "0.1.0";
 
@@ -95,7 +97,10 @@ export async function run(argv: string[] = process.argv): Promise<void> {
         }
 
         const project = requireProject(process.cwd());
-        await refreshBeforeSearch(project);
+        const refresh = await refreshBeforeSearch(project);
+        if (!opts.json && !opts.files) {
+          printRefreshSummaryHuman(refresh);
+        }
         const results = searchProject(project, query, {
           limit: opts.maxResults,
           minScore: opts.minScore
@@ -131,7 +136,10 @@ export async function run(argv: string[] = process.argv): Promise<void> {
         }
 
         const project = requireProject(process.cwd());
-        await refreshBeforeSearch(project);
+        const refresh = await refreshBeforeSearch(project);
+        if (!opts.json && !opts.files) {
+          printRefreshSummaryHuman(refresh);
+        }
         const results = await vectorSearchProject(project, query, {
           limit: opts.maxResults,
           minScore: opts.minScore,
@@ -175,7 +183,10 @@ export async function run(argv: string[] = process.argv): Promise<void> {
         }
 
         const project = requireProject(process.cwd());
-        await refreshBeforeSearch(project);
+        const refresh = await refreshBeforeSearch(project);
+        if (!opts.json && !opts.files) {
+          printRefreshSummaryHuman(refresh);
+        }
         const output = await queryProject(project, query, {
           limit: opts.maxResults,
           minScore: opts.minScore,
@@ -217,13 +228,15 @@ export async function run(argv: string[] = process.argv): Promise<void> {
   }
 }
 
-async function refreshBeforeSearch(project: ProjectPaths): Promise<void> {
+async function refreshBeforeSearch(
+  project: ProjectPaths
+): Promise<{ stats: IndexStats; status: StatusInfo }> {
   const config = loadConfig(project.configPath);
-  await indexProject(project, config, {
-    force: true,
-    embed: true,
-    reembed: true
+  const stats = await indexProject(project, config, {
+    embed: true
   });
+  const status = getProjectStatus(project);
+  return { stats, status };
 }
 
 function printWarnings(warnings: string[]): void {

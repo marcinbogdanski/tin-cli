@@ -1,4 +1,7 @@
+import { createColors } from "picocolors";
 import type { IndexStats, SearchResult, StatusInfo } from "../core/types.js";
+
+const colors = createColors(resolveColorEnabled());
 
 export function printJson(data: unknown): void {
   process.stdout.write(`${JSON.stringify(data, null, 2)}\n`);
@@ -42,16 +45,34 @@ export function printSearchHuman(query: string, results: SearchResult[]): void {
   process.stdout.write(`Results for: ${query}\n\n`);
 
   results.forEach((result, idx) => {
-    const sourceLabel = result.source ? `${result.source} ` : "";
+    const sourceLabel =
+      result.source && result.source !== "vector" ? `${result.source} ` : "";
+    const scoreName = result.source === "vector" ? "vscore" : "score";
     const scoreLabel = result.score.toFixed(3);
-    process.stdout.write(
-      `=== ${idx + 1}. ${result.path} (anchor line: ${result.line}, ${sourceLabel}score: ${scoreLabel}) ===\n`
-    );
+    const chunkLabel = `, chunk: ${result.chunkNumber}/${result.chunkCount}`;
+    const header = `=== ${idx + 1}. ${result.path} (line: ${result.line}${chunkLabel}, ${sourceLabel}${scoreName}: ${scoreLabel}) ===`;
+    process.stdout.write(`${colors.blue(header)}\n`);
     if (result.snippet.trim().length > 0) {
       process.stdout.write(`${result.snippet}\n`);
     }
     process.stdout.write("\n");
   });
+}
+
+export function printRefreshSummaryHuman(params: { stats: IndexStats; status: StatusInfo }): void {
+  const { stats, status } = params;
+  const refreshedFiles = stats.added + stats.updated;
+
+  process.stdout.write(
+    `Refresh before search: Files indexed ${status.indexedFiles}/${stats.scanned}, Chunks embedded ${status.embeddedChunks}/${status.indexedChunks}\n`
+  );
+  process.stdout.write(
+    `This refresh: files indexed ${refreshedFiles} (${stats.added} new, ${stats.updated} updated, ${stats.removed} removed), chunks embedded ${stats.embedded}\n`
+  );
+  if (stats.errors > 0) {
+    process.stdout.write(`Refresh warnings: ${stats.errors} file errors\n`);
+  }
+  process.stdout.write("\n");
 }
 
 export function printFiles(results: SearchResult[]): void {
@@ -81,4 +102,20 @@ export function printStatusHuman(status: StatusInfo): void {
   process.stdout.write(`Embedding model name: ${embeddingModelName} (${embeddingModelSource})\n`);
   process.stdout.write(`Embedding API key: ${embeddingApiKeyPreview} (${embeddingApiKeySource})\n`);
   process.stdout.write(`Embedded chunks: ${status.embeddedChunks} / ${status.indexedChunks}\n`);
+}
+
+function resolveColorEnabled(): boolean {
+  if (process.env.NO_COLOR !== undefined) {
+    return false;
+  }
+
+  const forceColor = process.env.FORCE_COLOR?.trim();
+  if (forceColor === "0") {
+    return false;
+  }
+  if (forceColor && forceColor !== "0") {
+    return true;
+  }
+
+  return Boolean(process.stdout.isTTY);
 }

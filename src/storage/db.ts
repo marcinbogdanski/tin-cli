@@ -233,18 +233,27 @@ export function searchBm25(db: DatabaseSync, query: string, opts: SearchOptions)
     .prepare(
       `SELECT
          c.path,
+         c.chunk_index,
+         counts.chunk_count,
          c.start_line,
          c.end_line,
          c.content,
          bm25(chunks_fts) AS bm25_score
        FROM chunks_fts
        JOIN chunks c ON c.id = chunks_fts.rowid
+       JOIN (
+         SELECT path, COUNT(*) AS chunk_count
+         FROM chunks
+         GROUP BY path
+       ) counts ON counts.path = c.path
        WHERE chunks_fts MATCH ?
        ORDER BY bm25_score ASC
        LIMIT ?`
     )
     .all(ftsQuery, opts.limit) as Array<{
     path: string;
+    chunk_index: number;
+    chunk_count: number;
     start_line: number;
     end_line: number;
     content: string;
@@ -269,6 +278,8 @@ export function searchBm25(db: DatabaseSync, query: string, opts: SearchOptions)
       line,
       startLine: row.start_line,
       endLine: row.end_line,
+      chunkNumber: row.chunk_index + 1,
+      chunkCount: row.chunk_count,
       score,
       snippet,
       source: "bm25"
@@ -286,13 +297,20 @@ export function searchVector(
 ): SearchResult[] {
   const rows = db
     .prepare(
-      `SELECT c.path, c.start_line, c.end_line, c.content, e.vector
+      `SELECT c.path, c.chunk_index, counts.chunk_count, c.start_line, c.end_line, c.content, e.vector
        FROM embeddings e
        JOIN chunks c ON c.id = e.chunk_id
+       JOIN (
+         SELECT path, COUNT(*) AS chunk_count
+         FROM chunks
+         GROUP BY path
+       ) counts ON counts.path = c.path
        WHERE e.model = ?`
     )
     .all(model) as Array<{
     path: string;
+    chunk_index: number;
+    chunk_count: number;
     start_line: number;
     end_line: number;
     content: string;
@@ -317,6 +335,8 @@ export function searchVector(
       line: row.start_line,
       startLine: row.start_line,
       endLine: row.end_line,
+      chunkNumber: row.chunk_index + 1,
+      chunkCount: row.chunk_count,
       score: normalized,
       snippet: opts.fullChunk ? row.content : makeSnippet(row.content, 0),
       source: "vector"

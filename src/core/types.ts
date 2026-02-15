@@ -19,6 +19,8 @@ export type SearchResult = {
   line: number;
   startLine: number;
   endLine: number;
+  chunkNumber: number;
+  chunkCount: number;
   score: number;
   snippet: string;
   source?: "bm25" | "vector" | "hybrid";
