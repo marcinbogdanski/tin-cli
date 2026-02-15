@@ -7,7 +7,8 @@ A command-line tool for searching local document collections using keyword and s
 - Phase 0 (Research): Completed
 - Phase 1 (Scaffold + Keyword Search): Completed
 - Phase 2 (Semantic Search): Completed
-- Current stage: Ready to begin Phase 3 implementation
+- Phase 3 (Hybrid + Reranking): Completed
+- Current stage: Ready to begin Phase 4 implementation
 - Research output: `PHASE0_RESEARCH.md`
 
 ## Context
@@ -211,15 +212,15 @@ Output:
 
 ### Phase 3 — Hybrid + Reranking
 
-- [ ] `tin query <query>` BM25 + vector retrieval
-- [ ] RRF fusion as default hybrid combiner
-- [ ] Optional reranking API on fused top-N
-- [ ] Graceful fallback when reranker or embeddings are unavailable
-- [ ] Score normalization/reporting to 0–1
+- [x] `tin query <query>` BM25 + vector retrieval
+- [x] RRF fusion as default hybrid combiner
+- [x] Optional reranking API on fused top-N
+- [x] Graceful fallback when reranker or embeddings are unavailable
+- [x] Score normalization/reporting to 0–1
 
 ### Phase 4 — OpenClaw Skill
 
-- [ ] Author `SKILL.md` with frontmatter (name, description, requires, install)
+- [x] Author `SKILL.md` with frontmatter (name, description, requires, install)
 - [ ] Validate OpenClaw end-to-end behavior
 - [ ] Publish to ClawHub or keep as workspace skill
 

@@ -72,7 +72,7 @@ function buildVector(text: string): number[] {
 
 async function withMockEmbeddingServer(fn: (env: NodeJS.ProcessEnv) => Promise<void>): Promise<void> {
   const server = createServer(async (req, res) => {
-    if (req.method !== "POST" || req.url !== "/embeddings") {
+    if (req.method !== "POST" || (req.url !== "/embeddings" && req.url !== "/rerank")) {
       res.statusCode = 404;
       res.end("not found");
       return;
@@ -83,18 +83,34 @@ async function withMockEmbeddingServer(fn: (env: NodeJS.ProcessEnv) => Promise<v
       bodyChunks.push(Buffer.from(chunk));
     }
 
+    if (req.url === "/embeddings") {
+      const payload = JSON.parse(Buffer.concat(bodyChunks).toString("utf8")) as {
+        input: string | string[];
+      };
+
+      const inputs = Array.isArray(payload.input) ? payload.input : [payload.input];
+      const data = inputs.map((text, index) => ({
+        index,
+        embedding: buildVector(text)
+      }));
+
+      res.setHeader("content-type", "application/json");
+      res.end(JSON.stringify({ data }));
+      return;
+    }
+
     const payload = JSON.parse(Buffer.concat(bodyChunks).toString("utf8")) as {
-      input: string | string[];
+      query: string;
+      documents: string[];
     };
-
-    const inputs = Array.isArray(payload.input) ? payload.input : [payload.input];
-    const data = inputs.map((text, index) => ({
+    const query = (payload.query || "").toLowerCase();
+    const docs = Array.isArray(payload.documents) ? payload.documents : [];
+    const results = docs.map((doc, index) => ({
       index,
-      embedding: buildVector(text)
+      relevance_score: doc.toLowerCase().includes(query) ? 1 : 0.2
     }));
-
     res.setHeader("content-type", "application/json");
-    res.end(JSON.stringify({ data }));
+    res.end(JSON.stringify({ data: results }));
   });
 
   await new Promise<void>((resolvePromise) => {
@@ -110,7 +126,10 @@ async function withMockEmbeddingServer(fn: (env: NodeJS.ProcessEnv) => Promise<v
   const env: NodeJS.ProcessEnv = {
     TIN_EMBEDDING_API_KEY: "test-key",
     TIN_EMBEDDING_BASE_URL: `http://127.0.0.1:${addr.port}`,
-    TIN_EMBEDDING_MODEL: "mock-embed-v1"
+    TIN_EMBEDDING_MODEL: "mock-embed-v1",
+    TIN_RERANK_API_KEY: "test-rerank-key",
+    TIN_RERANK_BASE_URL: `http://127.0.0.1:${addr.port}`,
+    TIN_RERANK_MODEL: "mock-rerank-v1"
   };
 
   try {
@@ -246,6 +265,33 @@ describe("tin CLI integration", () => {
     const res = runTin(["status"], workspace);
     assert.notEqual(res.code, 0);
     assert.match(res.stderr, /No tin project found/);
+  });
+
+  it("query falls back to bm25 when embedding config is missing", () => {
+    assert.equal(runTin(["init"], workspace).code, 0);
+    assert.equal(runTin(["index"], workspace).code, 0);
+
+    const res = runTin(["query", "alpha", "--json"], workspace);
+    assert.equal(res.code, 0, res.stderr);
+    assert.match(res.stderr, /falling back to BM25-only/i);
+    const results = JSON.parse(res.stdout) as Array<{ path: string; source: string }>;
+    assert.ok(results.length >= 1);
+    assert.equal(results[0]?.path, "docs/a.md");
+    assert.equal(results[0]?.source, "bm25");
+  });
+
+  it("query returns hybrid results and supports rerank", async () => {
+    await withMockEmbeddingServer(async (env) => {
+      assert.equal((await runTinAsync(["init"], workspace, env)).code, 0);
+      assert.equal((await runTinAsync(["index", "--embed"], workspace, env)).code, 0);
+
+      const res = await runTinAsync(["query", "alpha", "--json"], workspace, env);
+      assert.equal(res.code, 0, res.stderr);
+      const results = JSON.parse(res.stdout) as Array<{ path: string; source: string }>;
+      assert.ok(results.length >= 1);
+      assert.equal(results[0]?.source, "hybrid");
+      assert.equal(results[0]?.path, "docs/a.md");
+    });
   });
 
   it("fails vsearch when embedding config is missing", () => {

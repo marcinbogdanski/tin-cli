@@ -9,7 +9,8 @@ Local CLI search for project documents with BM25, vector search, and hybrid retr
 - Phase 0 research: complete
 - Phase 1 scaffold + keyword search: complete
 - Phase 2 semantic search: complete
-- Current stage: Phase 3 (hybrid query) next
+- Phase 3 hybrid query + optional rerank: complete
+- Current stage: Phase 4 (OpenClaw skill packaging) next
 - Project plan: see `PRD.md`
 - Research decisions: see `PHASE0_RESEARCH.md`
 
@@ -20,6 +21,7 @@ Local CLI search for project documents with BM25, vector search, and hybrid retr
 - `tin search <query>` (BM25 + snippets)
 - `tin status`
 - `tin vsearch <query>` (requires embedding API env)
+- `tin query <query>` (hybrid BM25+vector with optional rerank)
 - Output modes:
   - human
   - `--json`
@@ -30,6 +32,10 @@ Local CLI search for project documents with BM25, vector search, and hybrid retr
   - `TIN_EMBEDDING_API_KEY`
   - `TIN_EMBEDDING_BASE_URL` (optional, default `https://api.openai.com/v1`)
   - `TIN_EMBEDDING_MODEL` (optional)
+- Optional rerank support (OpenAI-compatible `/rerank` API):
+  - `TIN_RERANK_API_KEY`
+  - `TIN_RERANK_BASE_URL` (optional, default `https://api.openai.com/v1`)
+  - `TIN_RERANK_MODEL` (optional)
 
 ## Planned Next Features
 
@@ -63,6 +69,7 @@ Expected skill behavior:
 - Product requirements: `PRD.md`
 - Phase 0 research: `PHASE0_RESEARCH.md`
 - Agent continuity notes: `AGENTS.md`
+- OpenClaw skill definition: `SKILL.md`
 
 ## License
 

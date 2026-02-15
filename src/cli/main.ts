@@ -4,6 +4,7 @@ import { loadConfig } from "../core/config.js";
 import { TinError } from "../core/errors.js";
 import { indexProject } from "../core/indexer.js";
 import { initProject, requireProject } from "../core/project.js";
+import { queryProject } from "../core/query.js";
 import { searchProject } from "../core/search.js";
 import { getProjectStatus } from "../core/status.js";
 import { vectorSearchProject } from "../core/vector-search.js";
@@ -147,6 +148,51 @@ export async function run(argv: string[] = process.argv): Promise<void> {
     );
 
   program
+    .command("query")
+    .description("Hybrid search (BM25 + vector) with optional rerank")
+    .argument("<query>", "Search query")
+    .option("--json", "Output JSON")
+    .option("--files", "Output file paths only")
+    .option("--no-rerank", "Disable rerank even if configured")
+    .option("-n, --max-results <n>", "Max results", parsePositiveInt, DEFAULT_MAX_RESULTS)
+    .option("--min-score <score>", "Minimum score", parseNonNegativeFloat, DEFAULT_MIN_SCORE)
+    .action(
+      async (
+        query: string,
+        opts: {
+          json?: boolean;
+          files?: boolean;
+          rerank?: boolean;
+          maxResults: number;
+          minScore: number;
+        }
+      ) => {
+        if (opts.json && opts.files) {
+          throw new TinError("Choose one output mode: --json or --files", 2);
+        }
+
+        const project = requireProject(process.cwd());
+        const output = await queryProject(project, query, {
+          limit: opts.maxResults,
+          minScore: opts.minScore,
+          useRerank: opts.rerank !== false
+        });
+
+        printWarnings(output.warnings);
+
+        if (opts.json) {
+          printJson(output.results);
+          return;
+        }
+        if (opts.files) {
+          printFiles(output.results);
+          return;
+        }
+        printSearchHuman(query, output.results);
+      }
+    );
+
+  program
     .command("status")
     .description("Show project index status")
     .option("--json", "Output JSON")
@@ -164,6 +210,15 @@ export async function run(argv: string[] = process.argv): Promise<void> {
     await program.parseAsync(argv);
   } catch (err) {
     handleError(err);
+  }
+}
+
+function printWarnings(warnings: string[]): void {
+  if (warnings.length === 0) {
+    return;
+  }
+  for (const warning of warnings) {
+    process.stderr.write(`Warning: ${warning}\n`);
   }
 }
 

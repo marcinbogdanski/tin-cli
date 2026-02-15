@@ -16,7 +16,8 @@ Primary source docs:
 - Phase 0 is complete.
 - Phase 1 is complete (`init`, `index`, `search`, `status`).
 - Phase 2 is complete (`index --embed`, `vsearch`, embedding storage).
-- Phase 3 has not started.
+- Phase 3 is complete (`query`, RRF fusion, optional rerank, graceful fallback).
+- Phase 4 is in progress (`SKILL.md` authored; OpenClaw validation pending).
 
 ## Locked Decisions
 
@@ -87,4 +88,4 @@ Primary source docs:
 
 ## Recommended Next Step
 
-Start Phase 3 by adding `tin query` (BM25 + vector fusion, optional rerank).
+Finish Phase 4 by validating OpenClaw end-to-end usage for the `SKILL.md`.
