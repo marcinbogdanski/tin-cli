@@ -5,7 +5,8 @@ A command-line tool for searching local document collections using keyword and s
 ## Project Status
 
 - Phase 0 (Research): Completed
-- Current stage: Ready to begin Phase 1 implementation
+- Phase 1 (Scaffold + Keyword Search): Completed
+- Current stage: Ready to begin Phase 2 implementation
 - Research output: `PHASE0_RESEARCH.md`
 
 ## Context
@@ -189,15 +190,15 @@ Output:
 
 ### Phase 1 — Scaffold + Keyword Search
 
-- [ ] Project setup (`package.json`, TypeScript, ESM, bin entrypoint)
-- [ ] `tin init` to create `.tin/`
-- [ ] SQLite schema bootstrap (`.tin/index.sqlite`)
-- [ ] `tin index` incremental file indexing (mtime + hash)
-- [ ] BM25 chunk indexing with FTS5
-- [ ] `tin search <query>` with scoring + snippets
-- [ ] `tin status` basic index health
-- [ ] Output formats: human, `--json`, `--files`
-- [ ] `.tin/config.json` for include/exclude globs
+- [x] Project setup (`package.json`, TypeScript, ESM, bin entrypoint)
+- [x] `tin init` to create `.tin/`
+- [x] SQLite schema bootstrap (`.tin/index.sqlite`)
+- [x] `tin index` incremental file indexing (mtime + hash)
+- [x] BM25 chunk indexing with FTS5
+- [x] `tin search <query>` with scoring + snippets
+- [x] `tin status` basic index health
+- [x] Output formats: human, `--json`, `--files`
+- [x] `.tin/config.json` for include/exclude globs
 
 ### Phase 2 — Semantic Search
 

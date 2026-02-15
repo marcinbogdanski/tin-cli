@@ -1,0 +1,29 @@
+{
+  "name": "tin-cli",
+  "version": "0.1.0",
+  "description": "Local CLI search for project documents with BM25, vector, and hybrid retrieval",
+  "type": "module",
+  "bin": {
+    "tin": "./bin/tin.js"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf dist",
+    "dev": "npm run build && node dist/src/cli/main.js",
+    "test": "npm run build && node --test dist/test/**/*.test.js",
+    "prepare": "npm run build"
+  },
+  "dependencies": {
+    "commander": "^14.0.1",
+    "fast-glob": "^3.3.3",
+    "zod": "^4.1.5"
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.0",
+    "typescript": "^5.9.2"
+  },
+  "license": "MIT"
+}

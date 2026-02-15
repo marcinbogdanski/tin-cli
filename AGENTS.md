@@ -14,8 +14,8 @@ Primary source docs:
 ## Current Status
 
 - Phase 0 is complete.
-- Phase 1 has not started.
-- No production code scaffold exists yet.
+- Phase 1 is complete (`init`, `index`, `search`, `status`).
+- Phase 2 has not started.
 
 ## Locked Decisions
 
@@ -86,4 +86,4 @@ Primary source docs:
 
 ## Recommended Next Step
 
-Start Phase 1 by scaffolding the CLI project and implementing `tin init` + project discovery first.
+Start Phase 2 by adding embedding provider support and `tin vsearch`.

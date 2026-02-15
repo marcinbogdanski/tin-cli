@@ -7,31 +7,29 @@ Local CLI search for project documents with BM25, vector search, and hybrid retr
 ## Status
 
 - Phase 0 research: complete
-- Current stage: pre-implementation (Phase 1 next)
+- Phase 1 scaffold + keyword search: complete
+- Current stage: Phase 2 (semantic search) next
 - Project plan: see `PRD.md`
 - Research decisions: see `PHASE0_RESEARCH.md`
 
-## Planned Features
+## Implemented Now
 
-- Project-local indexing (`.tin/` per workspace)
-- Incremental indexing (mtime + content hash)
-- Keyword search (`tin search`)
+- `tin init`
+- `tin index` (incremental using mtime + hash)
+- `tin search <query>` (BM25 + snippets)
+- `tin status`
+- Output modes:
+  - human
+  - `--json`
+  - `--files` (for `search`)
+- Project config at `.tin/config.json` (include/exclude globs)
+- SQLite index at `.tin/index.sqlite` (built-in `node:sqlite`)
+
+## Planned Next Features
+
 - Semantic search (`tin vsearch`)
 - Hybrid search with RRF (`tin query`)
 - Optional reranking via API
-- Output formats:
-  - human (default)
-  - `--json`
-  - `--files`
-
-## Command Surface (Target)
-
-- `tin init`
-- `tin index`
-- `tin search <query>`
-- `tin vsearch <query>`
-- `tin query <query>`
-- `tin status`
 
 ## Technical Direction
 
