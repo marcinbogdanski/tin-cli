@@ -237,6 +237,29 @@ describe("tin CLI integration", () => {
     assert.ok(results.some((r) => r.path === "docs/nested/deep.md"));
   });
 
+  it("prints status with embedding config sources", () => {
+    assert.equal(runTin(["init"], workspace).code, 0);
+    assert.equal(runTin(["index"], workspace).code, 0);
+
+    const res = runTin(["status"], workspace, {
+      TIN_EMBEDDING_BASE_URL: "https://example.invalid/v1/",
+      TIN_EMBEDDING_MODEL: "mock-embed-v2",
+      TIN_EMBEDDING_API_KEY: "sk-test-abcdef"
+    });
+
+    assert.equal(res.code, 0, res.stderr);
+    assert.match(res.stdout, /Project path: /);
+    assert.match(res.stdout, /Tin path: /);
+    assert.match(res.stdout, /Index path: /);
+    assert.match(res.stdout, /Indexed files: 2/);
+    assert.match(res.stdout, /Indexed chunks: /);
+    assert.match(res.stdout, /Indexed time: /);
+    assert.match(res.stdout, /Embedding API URL: https:\/\/example\.invalid\/v1 \(env var\)/);
+    assert.match(res.stdout, /Embedding model name: mock-embed-v2 \(env var\)/);
+    assert.match(res.stdout, /Embedding API key: sk-tes\.\.\. \(env var\)/);
+    assert.match(res.stdout, /Embedded chunks: 0 \/ /);
+  });
+
   it("embeds chunks and supports vsearch with configured API", async () => {
     await withMockEmbeddingServer(async (env) => {
       assert.equal((await runTinAsync(["init"], workspace, env)).code, 0);

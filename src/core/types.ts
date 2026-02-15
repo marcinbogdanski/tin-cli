@@ -33,4 +33,10 @@ export type StatusInfo = {
   embeddedChunks: number;
   lastIndexedAt: string | null;
   needsEmbedding: number;
+  embeddingApiUrl?: string;
+  embeddingApiUrlSource?: "env var" | "default" | "config";
+  embeddingModelName?: string;
+  embeddingModelSource?: "env var" | "default" | "config";
+  embeddingApiKeyPreview?: string;
+  embeddingApiKeySource?: "env var" | "unset";
 };

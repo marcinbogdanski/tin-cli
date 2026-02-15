@@ -59,12 +59,22 @@ export function printFiles(results: SearchResult[]): void {
 }
 
 export function printStatusHuman(status: StatusInfo): void {
-  process.stdout.write(`Project: ${status.rootPath}\n`);
-  process.stdout.write(`tin: ${status.tinPath}\n`);
-  process.stdout.write(`Index: ${status.dbPath}\n`);
-  process.stdout.write(`Files: ${status.indexedFiles}\n`);
-  process.stdout.write(`Chunks: ${status.indexedChunks}\n`);
-  process.stdout.write(`Embedded chunks: ${status.embeddedChunks}\n`);
-  process.stdout.write(`Last indexed: ${status.lastIndexedAt ?? "never"}\n`);
-  process.stdout.write(`Needs embedding: ${status.needsEmbedding}\n`);
+  process.stdout.write(`Project path: ${status.rootPath}\n`);
+  process.stdout.write(`Tin path: ${status.tinPath}\n`);
+  process.stdout.write(`Index path: ${status.dbPath}\n`);
+  process.stdout.write(`Indexed files: ${status.indexedFiles}\n`);
+  process.stdout.write(`Indexed chunks: ${status.indexedChunks}\n`);
+  process.stdout.write(`Indexed time: ${status.lastIndexedAt ?? "never"}\n`);
+
+  const embeddingApiUrl = status.embeddingApiUrl ?? "https://api.openai.com/v1";
+  const embeddingApiUrlSource = status.embeddingApiUrlSource ?? "default";
+  const embeddingModelName = status.embeddingModelName ?? "text-embedding-3-small";
+  const embeddingModelSource = status.embeddingModelSource ?? "default";
+  const embeddingApiKeyPreview = status.embeddingApiKeyPreview ?? "unset";
+  const embeddingApiKeySource = status.embeddingApiKeySource ?? "unset";
+
+  process.stdout.write(`Embedding API URL: ${embeddingApiUrl} (${embeddingApiUrlSource})\n`);
+  process.stdout.write(`Embedding model name: ${embeddingModelName} (${embeddingModelSource})\n`);
+  process.stdout.write(`Embedding API key: ${embeddingApiKeyPreview} (${embeddingApiKeySource})\n`);
+  process.stdout.write(`Embedded chunks: ${status.embeddedChunks} / ${status.indexedChunks}\n`);
 }
