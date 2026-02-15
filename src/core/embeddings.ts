@@ -24,7 +24,7 @@ export async function embedMissingChunks(
   const config = getEmbeddingConfigFromEnv();
   if (!config) {
     throw new TinError(
-      "Embedding is not configured. Set TIN_EMBEDDING_API_KEY (or OPENAI_API_KEY for openai provider)."
+      "Embedding is not configured. Set TIN_EMBEDDING_API_KEY (or provider alias: OPENAI_API_KEY / VOYAGE_API_KEY)."
     );
   }
 
@@ -71,7 +71,7 @@ export async function embedQuery(query: string): Promise<{ vector: number[]; mod
   const config = getEmbeddingConfigFromEnv();
   if (!config) {
     throw new TinError(
-      "Embedding is not configured. Set TIN_EMBEDDING_API_KEY (or OPENAI_API_KEY for openai provider)."
+      "Embedding is not configured. Set TIN_EMBEDDING_API_KEY (or provider alias: OPENAI_API_KEY / VOYAGE_API_KEY)."
     );
   }
 

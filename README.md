@@ -29,14 +29,14 @@ Local CLI search for project documents with BM25, vector search, and hybrid retr
   - `--files` (for `search` and `vsearch`)
 - Project config at `.tin/config.json` (include/exclude globs)
 - SQLite index at `.tin/index.sqlite` (built-in `node:sqlite`)
-- Embedding support (OpenAI-compatible `/embeddings` API):
-  - `TIN_EMBEDDING_PROVIDER` (optional, default `openai`)
+- Embedding support (`/embeddings` API):
+  - `TIN_EMBEDDING_PROVIDER` (optional, default `openai`; supported: `openai`, `voyage`)
   - `TIN_EMBEDDING_API_KEY`
-  - `TIN_EMBEDDING_BASE_URL` (optional, default `https://api.openai.com/v1`)
-  - `TIN_EMBEDDING_MODEL` (optional)
-  - For `TIN_EMBEDDING_PROVIDER=openai`, fallback aliases are supported:
-    - `OPENAI_API_KEY`
-    - `OPENAI_BASE_URL`
+  - `TIN_EMBEDDING_BASE_URL` (optional; defaults by provider)
+  - `TIN_EMBEDDING_MODEL` (optional; defaults by provider)
+  - Provider fallback aliases:
+    - `openai`: `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_API_BASE`
+    - `voyage`: `VOYAGE_API_KEY`, `VOYAGE_BASE_URL`, `VOYAGE_API_BASE`
 - Optional rerank support (OpenAI-compatible `/rerank` API):
   - `TIN_RERANK_API_KEY`
   - `TIN_RERANK_BASE_URL` (optional, default `https://api.openai.com/v1`)
@@ -45,7 +45,7 @@ Local CLI search for project documents with BM25, vector search, and hybrid retr
 Embedding configuration precedence:
 
 1. `TIN_*` env vars
-2. Provider aliases (currently `OPENAI_*` for `openai`)
+2. Provider aliases (`OPENAI_*` or `VOYAGE_*` based on `TIN_EMBEDDING_PROVIDER`)
 3. Built-in defaults
 
 ## Planned Next Features

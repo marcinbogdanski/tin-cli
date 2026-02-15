@@ -70,7 +70,10 @@ function buildVector(text: string): number[] {
   ];
 }
 
-async function withMockEmbeddingServer(fn: (env: NodeJS.ProcessEnv) => Promise<void>): Promise<void> {
+async function withMockEmbeddingServer(
+  fn: (env: NodeJS.ProcessEnv) => Promise<void>,
+  options?: { embeddingResponseShape?: "data" | "embeddings" }
+): Promise<void> {
   const server = createServer(async (req, res) => {
     if (req.method !== "POST" || (req.url !== "/embeddings" && req.url !== "/rerank")) {
       res.statusCode = 404;
@@ -89,13 +92,17 @@ async function withMockEmbeddingServer(fn: (env: NodeJS.ProcessEnv) => Promise<v
       };
 
       const inputs = Array.isArray(payload.input) ? payload.input : [payload.input];
-      const data = inputs.map((text, index) => ({
+      const vectors = inputs.map((text, index) => ({
         index,
         embedding: buildVector(text)
       }));
 
       res.setHeader("content-type", "application/json");
-      res.end(JSON.stringify({ data }));
+      if (options?.embeddingResponseShape === "embeddings") {
+        res.end(JSON.stringify({ embeddings: vectors.map((item) => item.embedding) }));
+      } else {
+        res.end(JSON.stringify({ data: vectors }));
+      }
       return;
     }
 
@@ -334,6 +341,41 @@ describe("tin CLI integration", () => {
       assert.match(status.stdout, /Embedding API URL: .* \(env var: OPENAI_BASE_URL\)/);
       assert.match(status.stdout, /Embedding API key: test-k\.\.\. \(env var: OPENAI_API_KEY\)/);
     });
+  });
+
+  it("supports VOYAGE_* fallback for voyage embedding provider", async () => {
+    await withMockEmbeddingServer(
+      async (env) => {
+        const fallbackEnv: NodeJS.ProcessEnv = {
+          TIN_EMBEDDING_PROVIDER: "voyage",
+          TIN_EMBEDDING_MODEL: "voyage-4-large",
+          VOYAGE_API_KEY: env.TIN_EMBEDDING_API_KEY,
+          VOYAGE_BASE_URL: env.TIN_EMBEDDING_BASE_URL
+        };
+
+        assert.equal((await runTinAsync(["init"], workspace, fallbackEnv)).code, 0);
+
+        const index = await runTinAsync(["index", "--json"], workspace, fallbackEnv);
+        assert.equal(index.code, 0, index.stderr);
+        const stats = JSON.parse(index.stdout) as { embedded: number; embeddingModel: string };
+        assert.ok(stats.embedded >= 2);
+        assert.equal(stats.embeddingModel, "voyage-4-large");
+
+        const vsearch = await runTinAsync(["vsearch", "alpha", "--json"], workspace, fallbackEnv);
+        assert.equal(vsearch.code, 0, vsearch.stderr);
+        const results = JSON.parse(vsearch.stdout) as Array<{ path: string }>;
+        assert.ok(results.length >= 1);
+        assert.equal(results[0]?.path, "docs/a.md");
+
+        const status = await runTinAsync(["status"], workspace, fallbackEnv);
+        assert.equal(status.code, 0, status.stderr);
+        assert.match(status.stdout, /Embedding provider: voyage \(env var: TIN_EMBEDDING_PROVIDER\)/);
+        assert.match(status.stdout, /Embedding API URL: .* \(env var: VOYAGE_BASE_URL\)/);
+        assert.match(status.stdout, /Embedding model name: voyage-4-large \(env var: TIN_EMBEDDING_MODEL\)/);
+        assert.match(status.stdout, /Embedding API key: test-k\.\.\. \(env var: VOYAGE_API_KEY\)/);
+      },
+      { embeddingResponseShape: "embeddings" }
+    );
   });
 
   it("fails outside a tin project", () => {
