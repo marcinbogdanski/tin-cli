@@ -1,55 +1,63 @@
 # tin — Product Requirements Document
 
-A command-line tool for searching local document collections using keyword and semantic search. Designed for personal knowledge bases (notes, docs, meeting transcripts) and agentic workflows — primarily as an OpenClaw skill.
+A command-line tool for searching local document collections using keyword and semantic search. Designed for personal knowledge bases (notes, docs, meeting transcripts) and agentic workflows, primarily as an OpenClaw skill.
+
+## Project Status
+
+- Phase 0 (Research): Completed
+- Current stage: Ready to begin Phase 1 implementation
+- Research output: `PHASE0_RESEARCH.md`
 
 ## Context
 
 - **Author:** Personal project, public GitHub repo.
 - **Runtime:** Node.js (aligns with OpenClaw ecosystem, simple distribution via `npm i -g`, easy to hack on).
 - **Primary consumer:** OpenClaw agent via a skill definition. Also usable directly from the terminal.
-- **Prior art:** [qmd](https://github.com/tobi/qmd) by Tobi Lütke is the closest existing tool — same command structure, search tiers, and target audience. tin is a personal, hackable alternative.
+- **Prior art:** [qmd](https://github.com/tobi/qmd) by Tobi Lütke is the closest existing tool. tin is a personal, hackable alternative.
 
 ## Differences from qmd
 
-- Stores db file in `.tin` folder independently for each collection, no global storage.
-- Only supports model invokation via API, no local built-in models.
-- Just BM25+Vector search. No query expansion.
-- No MCP support, just the CLI.
+- Stores index inside each project's `.tin/` folder (no global index).
+- API-based embedding/rerank providers only (no built-in local models in v1).
+- BM25 + vector + hybrid retrieval, no query expansion in v1.
+- No MCP server in v1 (CLI-first).
 
 ## Concepts
 
-- **Project:** A folder tree of documents. Identified by a `.tin/` marker directory at the root.
-- **Index:** A searchable representation of all documents in a project. Stored inside `.tin/`.
+- **Project:** A folder tree of documents, identified by a `.tin/` marker directory at the root.
+- **Index:** A searchable representation of project documents stored inside `.tin/`.
 
 ## Discovery
 
-When invoked, the tool walks up from the current directory until it finds `.tin/`. This determines the project root and index location. Fails with a clear error if no project is found.
+When invoked, `tin` walks up from the current directory until it finds `.tin/`. This determines project root and index location. Fail with a clear error if no project is found.
 
 ## Commands
 
 ### `tin init`
 
-Create a new project in the current directory. Creates `.tin/` with default config.
+Create a new project in the current directory. Creates `.tin/` and default config.
 
 ### `tin index`
 
-Scan all documents in the project. Build/update the search index. Only re-process files that have changed since last index. Report what was added, updated, and skipped.
+Scan project documents and build/update the index. Re-process only changed files and remove deleted files from the index.
 
 ### `tin search <query>`
 
-Keyword search (BM25). Fast, no external dependencies. Returns ranked results.
+Keyword search (BM25). Fast local retrieval, no embedding API required.
 
 ### `tin vsearch <query>`
 
-Semantic/vector search. Finds conceptually related documents even without keyword overlap. Requires an embedding API.
+Vector/semantic search. Finds conceptually related content. Requires embedding API configuration.
 
 ### `tin query <query>`
 
-Hybrid search. Combines keyword and semantic results, then re-ranks for best quality. Requires embedding and reranking APIs.
+Hybrid search. Combine BM25 and vector retrieval with RRF fusion. Optional reranking can be enabled via API config.
+
+If embeddings are unavailable, degrade to BM25 with a clear warning.
 
 ### `tin status`
 
-Show project info: root path, number of indexed documents, index freshness, embedding coverage.
+Show project info: root path, document/chunk counts, index freshness, and embedding coverage.
 
 ## Search Results
 
@@ -58,91 +66,164 @@ Each result includes:
 - File path (relative to project root)
 - Position within file (line or section)
 - Relevance score (normalized 0–1)
-- Snippet with context around the match
+- Snippet with local context
 
-Output formats: human-readable (default), JSON (`--json`), file list (`--files`).
+Output formats:
+
+- Human-readable (default)
+- JSON (`--json`)
+- File list (`--files`)
 
 ## Document Types
 
-Index all text-based files. Primarily markdown, but should handle plain text. PDFs and other binary formats are out of scope for v1.
+Index text-based files in v1:
+
+- Markdown (`.md`)
+- Plain text (`.txt`)
+
+Out of scope for v1: PDFs and binary formats.
 
 ## Incremental Updates
 
-Indexing should be fast on repeat runs. Only new or modified files are processed. Deleted files are removed from the index. Use file mtime + content hash to detect changes.
+Indexing should be fast on repeat runs.
+
+- Detect changes with `mtime + content hash`
+- Only process new/modified files
+- Remove deleted files from index
 
 ## Configuration
 
-Minimal. API keys via environment variables (`TIN_EMBEDDING_API_KEY`, etc.). File glob patterns (include/exclude) via `.tin/config.json`. Sensible defaults that work without configuration.
+Minimal by default.
+
+- API keys via env vars
+  - `TIN_EMBEDDING_API_KEY`
+  - `TIN_EMBEDDING_BASE_URL` (optional)
+  - `TIN_EMBEDDING_MODEL`
+  - `TIN_RERANK_API_KEY` (optional)
+  - `TIN_RERANK_BASE_URL` (optional)
+  - `TIN_RERANK_MODEL` (optional)
+- Include/exclude globs in `.tin/config.json`
 
 ## OpenClaw Integration
 
 tin is designed to be invoked by an OpenClaw agent via a skill. The skill definition should:
 
-- Declare `tin` as a required binary (`requires.bins: ["tin"]`).
-- Provide install instructions (`kind: "node"`, package name).
-- Describe each command so the agent knows when to use keyword vs semantic vs hybrid search.
-- Prefer `--json` output so the agent can parse results programmatically.
+- Declare `tin` as required binary (`requires.bins: ["tin"]`)
+- Provide install instructions (`kind: "node"`, package name)
+- Describe command intent (`search` vs `vsearch` vs `query`)
+- Prefer `--json` output for programmatic parsing
 
-A `SKILL.md` should be authored alongside the CLI and published to the skill registry or kept in the workspace.
+A `SKILL.md` will be authored in Phase 4.
+
+## Phase 0 Decisions (Locked)
+
+### Architecture
+
+Use a layered architecture:
+
+- `src/cli/` command handlers
+- `src/core/` indexing and retrieval logic
+- `src/storage/` SQLite schema + query layer
+- `src/providers/` embedding/rerank adapters
+
+### Storage
+
+Use a SQLite-first design from Phase 1:
+
+- `.tin/index.sqlite`
+- No JSON index files
+
+### Retrieval
+
+- `search`: BM25
+- `vsearch`: vector similarity
+- `query`: BM25 + vector with RRF fusion
+- Reranker is optional and opt-in
+
+### Provider Model
+
+OpenAI-compatible API interface first, provider-specific adapters optional.
+
+### Test Strategy
+
+- Unit tests for ranking math and incremental logic
+- Storage integration tests for schema/query behavior
+- CLI integration tests against fixture workspaces
+- Mocked provider contract tests
 
 ## Tech Stack
 
-- **Language:** Node.js (ES modules, modern Node >= 20)
-- **CLI framework:** TBD
-- **Keyword search:** TBD
-- **Embeddings:** TBD - OpenAI compatible API?
-- **Vector storage:** TBD - sqlite in `.tin`?
-- **Reranking:** API-based (details TBD, Cohere, Jina, or OpenAI-compatible?). Optional — hybrid search degrades gracefully to simple score fusion without it.
+- **Language/runtime:** Node.js >= 20, TypeScript, ESM
+- **CLI framework:** `commander`
+- **Storage/index:** `better-sqlite3` with FTS5
+- **File scanning:** `fast-glob`
+- **Validation:** `zod`
+- **CLI colors:** `picocolors`
+- **Testing:** `vitest` + `tsx`
 
 ## Implementation Plan
 
-### Phase 0 - Research
+### Phase 0 — Research (Completed)
 
-Focus ponits:
-- decide project architecture, dependencies, API format, storage, tests, etc
+Focus points:
+
+- project architecture
+- dependencies
+- API format
+- storage
+- testing strategy
 
 Actions:
-- [ ] Deeply research `qmd-reference-repo`
-- [ ] Deeply research `openclaw-reference-repo` focusing on "hybrid search"
-  - `node openclaw.mjs memory search --help` - cli command to invoke search, good starting point
-- [ ] For each focus point, summarise options and provide recommendation
+
+- [x] Deeply research `qmd-reference-repo`
+- [x] Deeply research `openclaw-reference-repo` focusing on hybrid search
+- [x] Summarize options and provide recommendations
+
+Output:
+
+- [x] `PHASE0_RESEARCH.md`
 
 ### Phase 1 — Scaffold + Keyword Search
 
-- [ ] Project setup: package.json, ESM, bin entry point
-- [ ] `tin init` — create `.tin/` directory
-- [ ] `tin index` — walk files, tokenize, build BM25 index, persist to `.tin/index.json`
-- [ ] `tin search <query>` — load index, run BM25, output results
-- [ ] `tin status` — basic project info
-- [ ] Incremental indexing (mtime + hash tracking in `.tin/manifest.json`)
+- [ ] Project setup (`package.json`, TypeScript, ESM, bin entrypoint)
+- [ ] `tin init` to create `.tin/`
+- [ ] SQLite schema bootstrap (`.tin/index.sqlite`)
+- [ ] `tin index` incremental file indexing (mtime + hash)
+- [ ] BM25 chunk indexing with FTS5
+- [ ] `tin search <query>` with scoring + snippets
+- [ ] `tin status` basic index health
 - [ ] Output formats: human, `--json`, `--files`
 - [ ] `.tin/config.json` for include/exclude globs
 
 ### Phase 2 — Semantic Search
 
-- [ ] `tin index --embed` or automatic embedding during index if API key is set
-- [ ] Embedding storage in `.tin/embeddings.bin` or similar
-- [ ] `tin vsearch <query>` — embed query, cosine similarity against stored vectors
-- [ ] Chunking strategy for long documents (by heading, paragraph, or fixed token window)
+- [ ] Embedding provider adapter (OpenAI-compatible)
+- [ ] Embedding generation during `tin index` (opt-in/auto when configured)
+- [ ] Vector storage in SQLite (`embeddings` + vector retrieval path)
+- [ ] `tin vsearch <query>` with cosine similarity
+- [ ] Chunking policy for long documents (heading-aware + fallback)
 
 ### Phase 3 — Hybrid + Reranking
 
-- [ ] `tin query <query>` — run both BM25 and vector search, fuse with Reciprocal Rank Fusion (RRF)
-- [ ] Optional reranking API call on fused results
-- [ ] Score normalization to 0–1
+- [ ] `tin query <query>` BM25 + vector retrieval
+- [ ] RRF fusion as default hybrid combiner
+- [ ] Optional reranking API on fused top-N
+- [ ] Graceful fallback when reranker or embeddings are unavailable
+- [ ] Score normalization/reporting to 0–1
 
 ### Phase 4 — OpenClaw Skill
 
 - [ ] Author `SKILL.md` with frontmatter (name, description, requires, install)
-- [ ] Test with OpenClaw agent end-to-end
+- [ ] Validate OpenClaw end-to-end behavior
 - [ ] Publish to ClawHub or keep as workspace skill
 
 ## Non-goals (v1)
 
 - GUI or web interface
-- Watching for file changes (manual `tin index` is fine)
-- Multi-project queries / collections
+- File watching (manual `tin index` is enough)
+- Multi-project queries
 - Binary/PDF parsing
 - Built-in LLM summarization
-- Vector database (Chroma, Qdrant, etc.) — flat file is fine at personal scale
-- Windows support (nice to have, not a priority)
+- Query expansion
+- MCP server
+- Windows-first support
