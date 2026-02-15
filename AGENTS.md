@@ -66,6 +66,18 @@ Primary source docs:
 - Prefer pure-Node dependencies; avoid native addons where possible.
 - Prefer deterministic behavior over heuristic-heavy features in early phases.
 
+## Working Style
+
+- Implement incrementally, one feature at a time.
+- After each feature, verify behavior and add/extend automated tests.
+- Update docs to reflect the new behavior/contract.
+- Commit in small, coherent steps (feature + tests + docs).
+
+## Dependency Policy
+
+- Local project dependencies may be installed (for example via `npm install` in this repo).
+- Do not install system-wide dependencies or tools from agent workflows.
+
 ## Guardrails
 
 - Do not reintroduce JSON index artifacts (`index.json`, `embeddings.bin`) unless PRD is explicitly changed.
