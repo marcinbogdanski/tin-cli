@@ -19,8 +19,9 @@ Primary source docs:
 
 ## Locked Decisions
 
-- Runtime: Node.js >= 20, TypeScript, ESM.
+- Runtime: Node.js >= 22, TypeScript, ESM.
 - Index storage: `.tin/index.sqlite` from Phase 1 onward.
+- Use built-in `node:sqlite` (no `better-sqlite3`).
 - Retrieval modes:
   - `search`: BM25
   - `vsearch`: vector
@@ -62,6 +63,7 @@ Primary source docs:
 - Keep storage and SQL in `src/storage`.
 - Provider/network logic should stay in `src/providers`.
 - Do not add local model dependencies for v1.
+- Prefer pure-Node dependencies; avoid native addons where possible.
 - Prefer deterministic behavior over heuristic-heavy features in early phases.
 
 ## Guardrails

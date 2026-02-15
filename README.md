@@ -37,8 +37,9 @@ Local CLI search for project documents with BM25, vector search, and hybrid retr
 
 Locked for v1:
 
-- Node.js >= 20, TypeScript, ESM
+- Node.js >= 22, TypeScript, ESM
 - SQLite index at `.tin/index.sqlite`
+- Built-in `node:sqlite` (no native DB addon dependency)
 - BM25 + vector retrieval, hybrid via RRF
 - OpenAI-compatible API integration first
 - No query expansion, no MCP server in v1

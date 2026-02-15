@@ -132,6 +132,7 @@ Use a SQLite-first design from Phase 1:
 
 - `.tin/index.sqlite`
 - No JSON index files
+- Use built-in `node:sqlite` (no `better-sqlite3` dependency)
 
 ### Retrieval
 
@@ -144,6 +145,10 @@ Use a SQLite-first design from Phase 1:
 
 OpenAI-compatible API interface first, provider-specific adapters optional.
 
+### Dependency Policy
+
+Prefer minimal, pure-Node dependencies. Avoid native addons where practical.
+
 ### Test Strategy
 
 - Unit tests for ranking math and incremental logic
@@ -153,12 +158,11 @@ OpenAI-compatible API interface first, provider-specific adapters optional.
 
 ## Tech Stack
 
-- **Language/runtime:** Node.js >= 20, TypeScript, ESM
+- **Language/runtime:** Node.js >= 22, TypeScript, ESM
 - **CLI framework:** `commander`
-- **Storage/index:** `better-sqlite3` with FTS5
+- **Storage/index:** built-in `node:sqlite` with FTS5
 - **File scanning:** `fast-glob`
 - **Validation:** `zod`
-- **CLI colors:** `picocolors`
 - **Testing:** `vitest` + `tsx`
 
 ## Implementation Plan

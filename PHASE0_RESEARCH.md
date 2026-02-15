@@ -6,6 +6,14 @@ This document executes Phase 0 from `PRD.md`:
 - Deeply research `openclaw-reference-repo` (with focus on hybrid search)
 - Summarize options and give recommendations for architecture, dependencies, API format, storage, and tests
 
+## Decision update (post-research)
+
+After Phase 0, we locked a practical dependency constraint:
+
+- Prefer pure-Node dependencies.
+- Avoid native addon compilation.
+- Use built-in `node:sqlite` instead of `better-sqlite3`.
+
 ## Scope and inputs
 
 Primary artifacts reviewed:
@@ -112,10 +120,9 @@ Recommendation (Option B):
 
 - Runtime:
   - `commander` for CLI
-  - `better-sqlite3` for local DB and FTS5
+  - built-in `node:sqlite` for local DB and FTS5
   - `zod` for config and API payload validation
   - `fast-glob` for include/exclude scanning
-  - `picocolors` for optional CLI color
 - Dev:
   - `typescript`
   - `vitest`
@@ -123,9 +130,10 @@ Recommendation (Option B):
 
 Reasoning:
 
-- Keeps stack stable on Node >=20.
+- Keeps stack stable on Node >=22 (required for `node:sqlite`).
 - Avoids Bun coupling.
 - Avoids local-model complexity from qmd.
+- Avoids native addon install/compile risk.
 
 ### 3) API format (embedding + reranking)
 
@@ -222,7 +230,7 @@ Minimum success criteria per phase:
 
 ## Concrete defaults for tin v1
 
-1. Runtime: Node 20+, ESM, TypeScript.
+1. Runtime: Node 22+, ESM, TypeScript.
 2. Local project model: `.tin/` marker in repo root, discovery by upward walk.
 3. Index file: `.tin/index.sqlite`.
 4. File types: Markdown + plain text only for v1.
@@ -239,17 +247,18 @@ Minimum success criteria per phase:
 
 ## Risks and mitigations
 
-1. sqlite-vec portability and extension loading friction:
-- Mitigation: keep vector backend pluggable; if sqlite-vec unavailable, fallback to brute-force cosine over stored vectors for small corpora.
+1. `node:sqlite` API is experimental in current Node releases:
+- Mitigation: isolate DB calls behind `src/storage/` adapter and pin/test Node version in CI.
 
-2. API cost and latency for embeddings/rerank:
+2. Vector retrieval may rely on brute-force cosine for v1 (no sqlite-vec):
+- Mitigation: acceptable at personal scale; keep retrieval adapter swappable for future acceleration.
+
+3. API cost and latency for embeddings/rerank:
 - Mitigation: batch embeddings, cache by content hash + model fingerprint, rerank only top-N.
 
-3. Scope creep from qmd features:
+4. Scope creep from qmd features:
 - Mitigation: explicitly defer query expansion, MCP, daemons, file watchers.
 
-## Open questions to resolve before Phase 1
+## Open questions carried forward
 
-1. Should Phase 1 strictly keep `.tin/index.json` from PRD, or accept moving directly to `.tin/index.sqlite`?
-2. For rerank in v1, should we ship only score-fusion fallback first and gate rerank behind an opt-in flag?
-3. Do you want `tin query` to hard-fail when embeddings are unavailable, or degrade to BM25-only with a warning?
+1. None blocking for Phase 1 scaffolding.
