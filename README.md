@@ -8,7 +8,8 @@ Local CLI search for project documents with BM25, vector search, and hybrid retr
 
 - Phase 0 research: complete
 - Phase 1 scaffold + keyword search: complete
-- Current stage: Phase 2 (semantic search) next
+- Phase 2 semantic search: complete
+- Current stage: Phase 3 (hybrid query) next
 - Project plan: see `PRD.md`
 - Research decisions: see `PHASE0_RESEARCH.md`
 
@@ -18,12 +19,17 @@ Local CLI search for project documents with BM25, vector search, and hybrid retr
 - `tin index` (incremental using mtime + hash)
 - `tin search <query>` (BM25 + snippets)
 - `tin status`
+- `tin vsearch <query>` (requires embedding API env)
 - Output modes:
   - human
   - `--json`
-  - `--files` (for `search`)
+  - `--files` (for `search` and `vsearch`)
 - Project config at `.tin/config.json` (include/exclude globs)
 - SQLite index at `.tin/index.sqlite` (built-in `node:sqlite`)
+- Embedding support (OpenAI-compatible `/embeddings` API):
+  - `TIN_EMBEDDING_API_KEY`
+  - `TIN_EMBEDDING_BASE_URL` (optional, default `https://api.openai.com/v1`)
+  - `TIN_EMBEDDING_MODEL` (optional)
 
 ## Planned Next Features
 

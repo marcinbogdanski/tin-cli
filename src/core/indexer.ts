@@ -2,6 +2,7 @@ import { readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import fg from "fast-glob";
 import { chunkByLines } from "./chunks.js";
+import { embedMissingChunks, hasEmbeddingConfiguration } from "./embeddings.js";
 import { hashContent } from "./hash.js";
 import type { TinConfig, IndexStats } from "./types.js";
 import type { ProjectPaths } from "./project.js";
@@ -18,7 +19,11 @@ function normalizeRelativePath(path: string): string {
   return path.replace(/\\/g, "/");
 }
 
-export function indexProject(project: ProjectPaths, config: TinConfig): IndexStats {
+export async function indexProject(
+  project: ProjectPaths,
+  config: TinConfig,
+  options?: { embed?: boolean }
+): Promise<IndexStats> {
   const db = openDatabase(project.dbPath);
   const stats: IndexStats = {
     scanned: 0,
@@ -26,7 +31,9 @@ export function indexProject(project: ProjectPaths, config: TinConfig): IndexSta
     updated: 0,
     skipped: 0,
     removed: 0,
-    errors: 0
+    errors: 0,
+    embedded: 0,
+    embeddingModel: null
   };
 
   try {
@@ -121,8 +128,16 @@ export function indexProject(project: ProjectPaths, config: TinConfig): IndexSta
     }
 
     stats.removed = deleteMissingFiles(db, seenPaths);
-    return stats;
   } finally {
     closeDatabase(db);
   }
+
+  const shouldEmbed = options?.embed === true || hasEmbeddingConfiguration();
+  if (shouldEmbed) {
+    const result = await embedMissingChunks(project);
+    stats.embedded = result.embedded;
+    stats.embeddingModel = result.model;
+  }
+
+  return stats;
 }

@@ -6,6 +6,7 @@ import { indexProject } from "../core/indexer.js";
 import { initProject, requireProject } from "../core/project.js";
 import { searchProject } from "../core/search.js";
 import { getProjectStatus } from "../core/status.js";
+import { vectorSearchProject } from "../core/vector-search.js";
 import {
   printFiles,
   printIndexHuman,
@@ -59,11 +60,14 @@ export async function run(argv: string[] = process.argv): Promise<void> {
   program
     .command("index")
     .description("Index project files")
+    .option("--embed", "Force embedding pass after indexing")
     .option("--json", "Output JSON")
-    .action((opts: { json?: boolean }) => {
+    .action(async (opts: { json?: boolean; embed?: boolean }) => {
       const project = requireProject(process.cwd());
       const config = loadConfig(project.configPath);
-      const stats = indexProject(project, config);
+      const stats = await indexProject(project, config, {
+        embed: Boolean(opts.embed)
+      });
 
       if (opts.json) {
         printJson(stats);
@@ -91,6 +95,41 @@ export async function run(argv: string[] = process.argv): Promise<void> {
 
         const project = requireProject(process.cwd());
         const results = searchProject(project, query, {
+          limit: opts.maxResults,
+          minScore: opts.minScore
+        });
+
+        if (opts.json) {
+          printJson(results);
+          return;
+        }
+        if (opts.files) {
+          printFiles(results);
+          return;
+        }
+        printSearchHuman(query, results);
+      }
+    );
+
+  program
+    .command("vsearch")
+    .description("Vector/semantic search")
+    .argument("<query>", "Search query")
+    .option("--json", "Output JSON")
+    .option("--files", "Output file paths only")
+    .option("-n, --max-results <n>", "Max results", parsePositiveInt, DEFAULT_MAX_RESULTS)
+    .option("--min-score <score>", "Minimum score", parseNonNegativeFloat, DEFAULT_MIN_SCORE)
+    .action(
+      async (
+        query: string,
+        opts: { json?: boolean; files?: boolean; maxResults: number; minScore: number }
+      ) => {
+        if (opts.json && opts.files) {
+          throw new TinError("Choose one output mode: --json or --files", 2);
+        }
+
+        const project = requireProject(process.cwd());
+        const results = await vectorSearchProject(project, query, {
           limit: opts.maxResults,
           minScore: opts.minScore
         });

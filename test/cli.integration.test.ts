@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { createServer } from "node:http";
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 
 type CmdResult = {
   code: number;
@@ -11,11 +12,15 @@ type CmdResult = {
   stderr: string;
 };
 
-function runTin(args: string[], cwd: string): CmdResult {
+function runTin(args: string[], cwd: string, env?: NodeJS.ProcessEnv): CmdResult {
   const cliPath = resolve(process.cwd(), "dist/src/cli/main.js");
   const proc = spawnSync(process.execPath, [cliPath, ...args], {
     cwd,
-    encoding: "utf8"
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      ...env
+    }
   });
 
   return {
@@ -23,6 +28,96 @@ function runTin(args: string[], cwd: string): CmdResult {
     stdout: proc.stdout ?? "",
     stderr: proc.stderr ?? ""
   };
+}
+
+function runTinAsync(args: string[], cwd: string, env?: NodeJS.ProcessEnv): Promise<CmdResult> {
+  return new Promise((resolvePromise) => {
+    const cliPath = resolve(process.cwd(), "dist/src/cli/main.js");
+    const proc = spawn(process.execPath, [cliPath, ...args], {
+      cwd,
+      env: {
+        ...process.env,
+        ...env
+      }
+    });
+
+    let stdout = "";
+    let stderr = "";
+    proc.stdout.on("data", (chunk) => {
+      stdout += chunk.toString("utf8");
+    });
+    proc.stderr.on("data", (chunk) => {
+      stderr += chunk.toString("utf8");
+    });
+
+    proc.on("close", (code) => {
+      resolvePromise({
+        code: code ?? 1,
+        stdout,
+        stderr
+      });
+    });
+  });
+}
+
+function buildVector(text: string): number[] {
+  const lowered = text.toLowerCase();
+  return [
+    lowered.includes("alpha") ? 1 : 0,
+    lowered.includes("beta") ? 1 : 0,
+    lowered.includes("deployment") ? 1 : 0,
+    lowered.length > 40 ? 0.5 : 0
+  ];
+}
+
+async function withMockEmbeddingServer(fn: (env: NodeJS.ProcessEnv) => Promise<void>): Promise<void> {
+  const server = createServer(async (req, res) => {
+    if (req.method !== "POST" || req.url !== "/embeddings") {
+      res.statusCode = 404;
+      res.end("not found");
+      return;
+    }
+
+    const bodyChunks: Buffer[] = [];
+    for await (const chunk of req) {
+      bodyChunks.push(Buffer.from(chunk));
+    }
+
+    const payload = JSON.parse(Buffer.concat(bodyChunks).toString("utf8")) as {
+      input: string | string[];
+    };
+
+    const inputs = Array.isArray(payload.input) ? payload.input : [payload.input];
+    const data = inputs.map((text, index) => ({
+      index,
+      embedding: buildVector(text)
+    }));
+
+    res.setHeader("content-type", "application/json");
+    res.end(JSON.stringify({ data }));
+  });
+
+  await new Promise<void>((resolvePromise) => {
+    server.listen(0, "127.0.0.1", () => resolvePromise());
+  });
+
+  const addr = server.address();
+  if (!addr || typeof addr === "string") {
+    await new Promise<void>((resolvePromise) => server.close(() => resolvePromise()));
+    throw new Error("failed to bind mock embedding server");
+  }
+
+  const env: NodeJS.ProcessEnv = {
+    TIN_EMBEDDING_API_KEY: "test-key",
+    TIN_EMBEDDING_BASE_URL: `http://127.0.0.1:${addr.port}`,
+    TIN_EMBEDDING_MODEL: "mock-embed-v1"
+  };
+
+  try {
+    await fn(env);
+  } finally {
+    await new Promise<void>((resolvePromise) => server.close(() => resolvePromise()));
+  }
 }
 
 describe("tin CLI integration", () => {
@@ -123,9 +218,42 @@ describe("tin CLI integration", () => {
     assert.ok(results.some((r) => r.path === "docs/nested/deep.md"));
   });
 
+  it("embeds chunks and supports vsearch with configured API", async () => {
+    await withMockEmbeddingServer(async (env) => {
+      assert.equal((await runTinAsync(["init"], workspace, env)).code, 0);
+
+      const index = await runTinAsync(["index", "--embed", "--json"], workspace, env);
+      assert.equal(index.code, 0, index.stderr);
+      const stats = JSON.parse(index.stdout) as { embedded: number; embeddingModel: string };
+      assert.ok(stats.embedded >= 2);
+      assert.equal(stats.embeddingModel, "mock-embed-v1");
+
+      const vsearch = await runTinAsync(["vsearch", "alpha", "--json"], workspace, env);
+      assert.equal(vsearch.code, 0, vsearch.stderr);
+      const results = JSON.parse(vsearch.stdout) as Array<{ path: string; source: string }>;
+      assert.ok(results.length >= 1);
+      assert.equal(results[0]?.path, "docs/a.md");
+      assert.equal(results[0]?.source, "vector");
+
+      const status = await runTinAsync(["status", "--json"], workspace, env);
+      const statusJson = JSON.parse(status.stdout) as { embeddedChunks: number; needsEmbedding: number };
+      assert.ok(statusJson.embeddedChunks >= 2);
+      assert.equal(statusJson.needsEmbedding, 0);
+    });
+  });
+
   it("fails outside a tin project", () => {
     const res = runTin(["status"], workspace);
     assert.notEqual(res.code, 0);
     assert.match(res.stderr, /No tin project found/);
+  });
+
+  it("fails vsearch when embedding config is missing", () => {
+    assert.equal(runTin(["init"], workspace).code, 0);
+    assert.equal(runTin(["index"], workspace).code, 0);
+
+    const res = runTin(["vsearch", "alpha"], workspace);
+    assert.notEqual(res.code, 0);
+    assert.match(res.stderr, /Embedding is not configured/);
   });
 });

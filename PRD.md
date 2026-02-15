@@ -6,7 +6,8 @@ A command-line tool for searching local document collections using keyword and s
 
 - Phase 0 (Research): Completed
 - Phase 1 (Scaffold + Keyword Search): Completed
-- Current stage: Ready to begin Phase 2 implementation
+- Phase 2 (Semantic Search): Completed
+- Current stage: Ready to begin Phase 3 implementation
 - Research output: `PHASE0_RESEARCH.md`
 
 ## Context
@@ -202,11 +203,11 @@ Output:
 
 ### Phase 2 — Semantic Search
 
-- [ ] Embedding provider adapter (OpenAI-compatible)
-- [ ] Embedding generation during `tin index` (opt-in/auto when configured)
-- [ ] Vector storage in SQLite (`embeddings` + vector retrieval path)
-- [ ] `tin vsearch <query>` with cosine similarity
-- [ ] Chunking policy for long documents (heading-aware + fallback)
+- [x] Embedding provider adapter (OpenAI-compatible)
+- [x] Embedding generation during `tin index` (opt-in/auto when configured)
+- [x] Vector storage in SQLite (`embeddings` + vector retrieval path)
+- [x] `tin vsearch <query>` with cosine similarity
+- [x] Chunking policy for long documents (heading-aware + fallback)
 
 ### Phase 3 — Hybrid + Reranking
 

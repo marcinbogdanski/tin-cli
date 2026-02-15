@@ -10,6 +10,8 @@ export type IndexStats = {
   skipped: number;
   removed: number;
   errors: number;
+  embedded: number;
+  embeddingModel: string | null;
 };
 
 export type SearchResult = {
@@ -19,6 +21,7 @@ export type SearchResult = {
   endLine: number;
   score: number;
   snippet: string;
+  source?: "bm25" | "vector" | "hybrid";
 };
 
 export type StatusInfo = {
@@ -27,6 +30,7 @@ export type StatusInfo = {
   dbPath: string;
   indexedFiles: number;
   indexedChunks: number;
+  embeddedChunks: number;
   lastIndexedAt: string | null;
   needsEmbedding: number;
 };

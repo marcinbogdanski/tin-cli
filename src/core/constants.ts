@@ -13,3 +13,4 @@ export const DEFAULT_EXCLUDE_GLOBS = [
 
 export const DEFAULT_MAX_RESULTS = 10;
 export const DEFAULT_MIN_SCORE = 0;
+export const DEFAULT_EMBEDDING_MODEL = "text-embedding-3-small";

@@ -15,7 +15,8 @@ Primary source docs:
 
 - Phase 0 is complete.
 - Phase 1 is complete (`init`, `index`, `search`, `status`).
-- Phase 2 has not started.
+- Phase 2 is complete (`index --embed`, `vsearch`, embedding storage).
+- Phase 3 has not started.
 
 ## Locked Decisions
 
@@ -86,4 +87,4 @@ Primary source docs:
 
 ## Recommended Next Step
 
-Start Phase 2 by adding embedding provider support and `tin vsearch`.
+Start Phase 3 by adding `tin query` (BM25 + vector fusion, optional rerank).

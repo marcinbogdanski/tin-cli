@@ -16,6 +16,11 @@ export type SearchOptions = {
   minScore: number;
 };
 
+export type PendingEmbeddingChunk = {
+  chunkId: number;
+  text: string;
+};
+
 export function openDatabase(dbPath: string): DatabaseSync {
   const dbDir = dirname(dbPath);
   if (!existsSync(dbDir)) {
@@ -50,6 +55,17 @@ function initializeSchema(db: DatabaseSync): void {
     );
 
     CREATE INDEX IF NOT EXISTS idx_chunks_path ON chunks(path);
+
+    CREATE TABLE IF NOT EXISTS embeddings (
+      chunk_id INTEGER NOT NULL,
+      model TEXT NOT NULL,
+      vector TEXT NOT NULL,
+      embedded_at TEXT NOT NULL,
+      PRIMARY KEY(chunk_id, model),
+      FOREIGN KEY(chunk_id) REFERENCES chunks(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_embeddings_model ON embeddings(model);
 
     CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
       path,
@@ -157,6 +173,48 @@ export function deleteMissingFiles(db: DatabaseSync, existingPaths: Set<string>)
   return removed;
 }
 
+export function listChunksMissingEmbeddings(
+  db: DatabaseSync,
+  model: string,
+  limit: number = 200
+): PendingEmbeddingChunk[] {
+  return db
+    .prepare(
+      `SELECT c.id AS chunkId, c.content AS text
+       FROM chunks c
+       LEFT JOIN embeddings e ON e.chunk_id = c.id AND e.model = ?
+       WHERE e.chunk_id IS NULL
+       ORDER BY c.id ASC
+       LIMIT ?`
+    )
+    .all(model, limit) as PendingEmbeddingChunk[];
+}
+
+export function upsertEmbeddings(
+  db: DatabaseSync,
+  model: string,
+  vectors: Array<{ chunkId: number; vector: number[] }>
+): void {
+  if (vectors.length === 0) {
+    return;
+  }
+
+  const now = new Date().toISOString();
+  withTransaction(db, () => {
+    const stmt = db.prepare(
+      `INSERT INTO embeddings(chunk_id, model, vector, embedded_at)
+       VALUES(?, ?, ?, ?)
+       ON CONFLICT(chunk_id, model) DO UPDATE SET
+         vector = excluded.vector,
+         embedded_at = excluded.embedded_at`
+    );
+
+    for (const item of vectors) {
+      stmt.run(item.chunkId, model, JSON.stringify(item.vector), now);
+    }
+  });
+}
+
 export function searchBm25(db: DatabaseSync, query: string, opts: SearchOptions): SearchResult[] {
   const ftsQuery = buildFtsQuery(query);
   if (!ftsQuery) {
@@ -204,17 +262,85 @@ export function searchBm25(db: DatabaseSync, query: string, opts: SearchOptions)
       startLine: row.start_line,
       endLine: row.end_line,
       score,
-      snippet
+      snippet,
+      source: "bm25"
     });
   }
 
   return out;
 }
 
-export function getStatus(db: DatabaseSync, paths: { rootPath: string; tinPath: string; dbPath: string }): StatusInfo {
+export function searchVector(
+  db: DatabaseSync,
+  queryVector: number[],
+  model: string,
+  opts: SearchOptions
+): SearchResult[] {
+  const rows = db
+    .prepare(
+      `SELECT c.path, c.start_line, c.end_line, c.content, e.vector
+       FROM embeddings e
+       JOIN chunks c ON c.id = e.chunk_id
+       WHERE e.model = ?`
+    )
+    .all(model) as Array<{
+    path: string;
+    start_line: number;
+    end_line: number;
+    content: string;
+    vector: string;
+  }>;
+
+  const scored: SearchResult[] = [];
+  for (const row of rows) {
+    const vec = parseVector(row.vector);
+    if (vec.length === 0 || vec.length !== queryVector.length) {
+      continue;
+    }
+
+    const cosine = cosineSimilarity(queryVector, vec);
+    const normalized = (cosine + 1) / 2;
+    if (normalized < opts.minScore) {
+      continue;
+    }
+
+    scored.push({
+      path: row.path,
+      line: row.start_line,
+      startLine: row.start_line,
+      endLine: row.end_line,
+      score: normalized,
+      snippet: makeSnippet(row.content, 0),
+      source: "vector"
+    });
+  }
+
+  return scored.sort((a, b) => b.score - a.score).slice(0, opts.limit);
+}
+
+export function getStatus(
+  db: DatabaseSync,
+  paths: { rootPath: string; tinPath: string; dbPath: string },
+  model?: string | null
+): StatusInfo {
   const fileCount = db.prepare("SELECT COUNT(*) AS c FROM files").get() as { c: number };
   const chunkCount = db.prepare("SELECT COUNT(*) AS c FROM chunks").get() as { c: number };
   const latest = db.prepare("SELECT MAX(indexed_at) AS latest FROM files").get() as { latest: string | null };
+
+  let embeddedChunks = 0;
+  if (model) {
+    const row = db
+      .prepare("SELECT COUNT(*) AS c FROM embeddings WHERE model = ?")
+      .get(model) as { c: number };
+    embeddedChunks = row.c;
+  } else {
+    const row = db
+      .prepare("SELECT COUNT(DISTINCT chunk_id) AS c FROM embeddings")
+      .get() as { c: number };
+    embeddedChunks = row.c;
+  }
+
+  const needsEmbedding = Math.max(0, chunkCount.c - embeddedChunks);
 
   return {
     rootPath: paths.rootPath,
@@ -222,8 +348,9 @@ export function getStatus(db: DatabaseSync, paths: { rootPath: string; tinPath: 
     dbPath: paths.dbPath,
     indexedFiles: fileCount.c,
     indexedChunks: chunkCount.c,
+    embeddedChunks,
     lastIndexedAt: latest.latest,
-    needsEmbedding: fileCount.c
+    needsEmbedding
   };
 }
 
@@ -296,4 +423,35 @@ function makeSnippet(content: string, lineOffset: number): string {
     return body;
   }
   return `${body.slice(0, 357)}...`;
+}
+
+function parseVector(raw: string): number[] {
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+    return parsed.map((v) => Number(v)).filter((v) => Number.isFinite(v));
+  } catch {
+    return [];
+  }
+}
+
+function cosineSimilarity(a: number[], b: number[]): number {
+  let dot = 0;
+  let normA = 0;
+  let normB = 0;
+
+  for (let i = 0; i < a.length; i += 1) {
+    const av = a[i] ?? 0;
+    const bv = b[i] ?? 0;
+    dot += av * bv;
+    normA += av * av;
+    normB += bv * bv;
+  }
+
+  if (normA === 0 || normB === 0) {
+    return 0;
+  }
+  return dot / (Math.sqrt(normA) * Math.sqrt(normB));
 }

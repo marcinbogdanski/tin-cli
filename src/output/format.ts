@@ -27,6 +27,10 @@ export function printIndexHuman(stats: IndexStats): void {
       (stats.errors > 0 ? `, ${stats.errors} errors` : "") +
       "\n"
   );
+
+  if (stats.embeddingModel) {
+    process.stdout.write(`Embeddings: ${stats.embedded} chunks embedded (${stats.embeddingModel})\n`);
+  }
 }
 
 export function printSearchHuman(query: string, results: SearchResult[]): void {
@@ -38,7 +42,10 @@ export function printSearchHuman(query: string, results: SearchResult[]): void {
   process.stdout.write(`Results for: ${query}\n\n`);
 
   results.forEach((result, idx) => {
-    process.stdout.write(`${idx + 1}. ${result.path}:${result.line} (score ${result.score.toFixed(3)})\n`);
+    const source = result.source ? `, ${result.source}` : "";
+    process.stdout.write(
+      `${idx + 1}. ${result.path}:${result.line} (score ${result.score.toFixed(3)}${source})\n`
+    );
     if (result.snippet.trim().length > 0) {
       process.stdout.write(`${result.snippet}\n`);
     }
@@ -57,6 +64,7 @@ export function printStatusHuman(status: StatusInfo): void {
   process.stdout.write(`Index: ${status.dbPath}\n`);
   process.stdout.write(`Files: ${status.indexedFiles}\n`);
   process.stdout.write(`Chunks: ${status.indexedChunks}\n`);
+  process.stdout.write(`Embedded chunks: ${status.embeddedChunks}\n`);
   process.stdout.write(`Last indexed: ${status.lastIndexedAt ?? "never"}\n`);
   process.stdout.write(`Needs embedding: ${status.needsEmbedding}\n`);
 }
