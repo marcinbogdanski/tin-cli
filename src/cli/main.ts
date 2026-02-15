@@ -132,7 +132,8 @@ export async function run(argv: string[] = process.argv): Promise<void> {
         const project = requireProject(process.cwd());
         const results = await vectorSearchProject(project, query, {
           limit: opts.maxResults,
-          minScore: opts.minScore
+          minScore: opts.minScore,
+          fullChunk: true
         });
 
         if (opts.json) {

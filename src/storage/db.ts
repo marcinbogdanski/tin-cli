@@ -14,6 +14,7 @@ export type StoredFile = {
 export type SearchOptions = {
   limit: number;
   minScore: number;
+  fullChunk?: boolean;
 };
 
 export type PendingEmbeddingChunk = {
@@ -310,7 +311,7 @@ export function searchVector(
       startLine: row.start_line,
       endLine: row.end_line,
       score: normalized,
-      snippet: makeSnippet(row.content, 0),
+      snippet: opts.fullChunk ? row.content : makeSnippet(row.content, 0),
       source: "vector"
     });
   }

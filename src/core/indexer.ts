@@ -1,7 +1,7 @@
 import { readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import fg from "fast-glob";
-import { chunkByLines } from "./chunks.js";
+import { chunkByChars, normalizeLineEndings } from "./chunks.js";
 import { embedMissingChunks, hasEmbeddingConfiguration } from "./embeddings.js";
 import { hashContent } from "./hash.js";
 import type { TinConfig, IndexStats } from "./types.js";
@@ -18,6 +18,8 @@ import {
 function normalizeRelativePath(path: string): string {
   return path.replace(/\\/g, "/");
 }
+
+const CHUNKING_HASH_VERSION = "chars-v1";
 
 export async function indexProject(
   project: ProjectPaths,
@@ -72,7 +74,15 @@ export async function indexProject(
       const mtimeMs = Math.floor(fileStat.mtimeMs);
       const sizeBytes = fileStat.size;
 
-      if (existing && existing.mtimeMs === mtimeMs && existing.sizeBytes === sizeBytes) {
+      const hasCurrentChunkingHash =
+        existing && existing.hash.startsWith(`${CHUNKING_HASH_VERSION}:`);
+
+      if (
+        existing &&
+        hasCurrentChunkingHash &&
+        existing.mtimeMs === mtimeMs &&
+        existing.sizeBytes === sizeBytes
+      ) {
         stats.skipped += 1;
         continue;
       }
@@ -85,7 +95,9 @@ export async function indexProject(
         continue;
       }
 
-      if (content.trim().length === 0) {
+      const normalizedContent = normalizeLineEndings(content);
+
+      if (normalizedContent.trim().length === 0) {
         if (existing) {
           updateFileMetadata(db, {
             path: relPath,
@@ -98,7 +110,7 @@ export async function indexProject(
         continue;
       }
 
-      const hash = hashContent(content);
+      const hash = `${CHUNKING_HASH_VERSION}:${hashContent(normalizedContent)}`;
       if (existing && existing.hash === hash) {
         updateFileMetadata(db, {
           path: relPath,
@@ -110,7 +122,7 @@ export async function indexProject(
         continue;
       }
 
-      const chunks = chunkByLines(content);
+      const chunks = chunkByChars(normalizedContent);
       upsertFileAndChunks(db, {
         path: relPath,
         hash,

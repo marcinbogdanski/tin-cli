@@ -6,14 +6,15 @@ import { embedQuery } from "./embeddings.js";
 export async function vectorSearchProject(
   project: ProjectPaths,
   query: string,
-  opts: { limit: number; minScore: number }
+  opts: { limit: number; minScore: number; fullChunk?: boolean }
 ): Promise<SearchResult[]> {
   const { vector, model } = await embedQuery(query);
   const db = openDatabase(project.dbPath);
   try {
     return searchVector(db, vector, model, {
       limit: opts.limit,
-      minScore: opts.minScore
+      minScore: opts.minScore,
+      fullChunk: opts.fullChunk
     });
   } finally {
     closeDatabase(db);

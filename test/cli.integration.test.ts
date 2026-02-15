@@ -267,6 +267,21 @@ describe("tin CLI integration", () => {
 
   it("embeds chunks and supports vsearch with configured API", async () => {
     await withMockEmbeddingServer(async (env) => {
+      writeFileSync(
+        join(workspace, "docs", "a.md"),
+        [
+          "# Alpha",
+          "",
+          "alpha line 1",
+          "alpha line 2",
+          "alpha line 3",
+          "alpha line 4",
+          "alpha line 5",
+          "alpha line 6",
+          "alpha tail marker"
+        ].join("\n")
+      );
+
       assert.equal((await runTinAsync(["init"], workspace, env)).code, 0);
 
       const index = await runTinAsync(["index", "--embed", "--json"], workspace, env);
@@ -281,6 +296,7 @@ describe("tin CLI integration", () => {
       assert.ok(results.length >= 1);
       assert.equal(results[0]?.path, "docs/a.md");
       assert.equal(results[0]?.source, "vector");
+      assert.match(vsearch.stdout, /alpha tail marker/);
 
       const status = await runTinAsync(["status", "--json"], workspace, env);
       const statusJson = JSON.parse(status.stdout) as { embeddedChunks: number; needsEmbedding: number };

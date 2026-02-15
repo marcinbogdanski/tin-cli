@@ -42,9 +42,10 @@ export function printSearchHuman(query: string, results: SearchResult[]): void {
   process.stdout.write(`Results for: ${query}\n\n`);
 
   results.forEach((result, idx) => {
-    const source = result.source ? `, ${result.source}` : "";
+    const sourceLabel = result.source ? `${result.source} ` : "";
+    const scoreLabel = result.score.toFixed(3);
     process.stdout.write(
-      `${idx + 1}. ${result.path}:${result.line} (score ${result.score.toFixed(3)}${source})\n`
+      `=== ${idx + 1}. ${result.path} (anchor line: ${result.line}, ${sourceLabel}score: ${scoreLabel}) ===\n`
     );
     if (result.snippet.trim().length > 0) {
       process.stdout.write(`${result.snippet}\n`);
