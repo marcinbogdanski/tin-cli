@@ -5,9 +5,10 @@ import type { SearchResult } from "./types.js";
 import { getRerankConfigFromEnv, rerankDocuments } from "../providers/rerank.js";
 import { TinError } from "./errors.js";
 import {
-  DEFAULT_HYBRID_CANDIDATE_MULTIPLIER,
-  DEFAULT_HYBRID_TEXT_WEIGHT,
-  DEFAULT_HYBRID_VECTOR_WEIGHT
+  DEFAULT_HYBRID_CANDIDATE_LIMIT,
+  DEFAULT_RRF_K,
+  DEFAULT_RRF_TOP1_BONUS,
+  DEFAULT_RRF_TOP3_BONUS
 } from "./constants.js";
 
 export type QueryOutput = {
@@ -29,7 +30,7 @@ export async function queryProject(
   }
 ): Promise<QueryOutput> {
   const warnings: string[] = [];
-  const candidateLimit = Math.max(opts.limit * DEFAULT_HYBRID_CANDIDATE_MULTIPLIER, opts.limit);
+  const candidateLimit = Math.max(DEFAULT_HYBRID_CANDIDATE_LIMIT, opts.limit);
 
   const bm25 = searchProject(project, query, {
     limit: candidateLimit,
@@ -63,11 +64,9 @@ export async function queryProject(
     };
   }
 
-  const fused = weightedHybridMerge({
+  const fused = reciprocalRankFusionMerge({
     vector,
-    keyword: bm25,
-    vectorWeight: DEFAULT_HYBRID_VECTOR_WEIGHT,
-    textWeight: DEFAULT_HYBRID_TEXT_WEIGHT
+    keyword: bm25
   })
     .map((r) => ({ ...r, source: "hybrid" as const }))
     .filter((r) => r.score >= opts.minScore);
@@ -89,7 +88,7 @@ export async function queryProject(
   }
 
   try {
-    const candidates = fused.slice(0, Math.max(opts.limit * 3, opts.limit));
+    const candidates = fused.slice(0, candidateLimit);
     const docs = candidates.map((r) => ({
       id: keyForResult(r),
       text: `${r.path}\n${r.snippet}`
@@ -103,17 +102,18 @@ export async function queryProject(
       };
     }
 
-    const rerankMap = new Map(reranked.map((r) => [r.id, r.score]));
-    const rerankScores = reranked.map((r) => r.score);
-    const min = Math.min(...rerankScores);
-    const max = Math.max(...rerankScores);
-    const span = Math.max(1e-9, max - min);
+    const rerankRanked = [...reranked].sort((a, b) => b.score - a.score);
+    const rerankMap = new Map(rerankRanked.map((r) => [r.id, r.score]));
+    const rrfRankById = new Map(candidates.map((r, idx) => [keyForResult(r), idx + 1]));
 
     const blended = candidates
       .map((result) => {
-        const raw = rerankMap.get(keyForResult(result));
-        const normalized = raw === undefined ? 0 : (raw - min) / span;
-        const score = 0.6 * result.score + 0.4 * normalized;
+        const key = keyForResult(result);
+        const rank = rrfRankById.get(key) ?? candidateLimit;
+        const rerankScore = rerankMap.get(key) ?? 0;
+        const rrfScore = 1 / rank;
+        const rrfWeight = rank <= 3 ? 0.75 : rank <= 10 ? 0.6 : 0.4;
+        const score = rrfWeight * rrfScore + (1 - rrfWeight) * rerankScore;
         return {
           ...result,
           score
@@ -136,60 +136,87 @@ export async function queryProject(
   }
 }
 
-function weightedHybridMerge(params: {
+function reciprocalRankFusionMerge(params: {
   vector: SearchResult[];
   keyword: SearchResult[];
-  vectorWeight: number;
-  textWeight: number;
 }): SearchResult[] {
+  const vectorWeight = 2;
+  const keywordWeight = 2;
+
   const byId = new Map<
     string,
     SearchResult & {
       vectorScore: number;
       bm25Score: number;
+      rrfScore: number;
+      topRank: number;
     }
   >();
 
-  for (const result of params.vector) {
-    byId.set(keyForResult(result), {
-      ...result,
-      vectorScore: result.score,
-      bm25Score: 0
-    });
-  }
-
-  for (const result of params.keyword) {
+  const upsertRank = (
+    result: SearchResult,
+    params: { rank: number; weight: number; listType: "vector" | "keyword" }
+  ): void => {
     const key = keyForResult(result);
     const existing = byId.get(key);
+    const contribution = params.weight / (DEFAULT_RRF_K + params.rank + 1);
     if (existing) {
-      existing.bm25Score = result.score;
-      existing.line = result.line;
-      if (result.snippet.trim().length > 0) {
-        existing.snippet = result.snippet;
+      existing.rrfScore += contribution;
+      existing.topRank = Math.min(existing.topRank, params.rank);
+      if (params.listType === "vector") {
+        existing.vectorScore = Math.max(existing.vectorScore, result.score);
+      } else {
+        existing.bm25Score = Math.max(existing.bm25Score, result.score);
+        existing.line = result.line;
+        if (result.snippet.trim().length > 0) {
+          existing.snippet = result.snippet;
+        }
       }
     } else {
       byId.set(key, {
         ...result,
-        vectorScore: 0,
-        bm25Score: result.score
+        vectorScore: params.listType === "vector" ? result.score : 0,
+        bm25Score: params.listType === "keyword" ? result.score : 0,
+        rrfScore: contribution,
+        topRank: params.rank
       });
     }
+  };
+
+  for (let rank = 0; rank < params.vector.length; rank += 1) {
+    const result = params.vector[rank];
+    if (!result) {
+      continue;
+    }
+    upsertRank(result, { rank, weight: vectorWeight, listType: "vector" });
   }
 
-  const vectorWeight = Math.max(0, params.vectorWeight);
-  const textWeight = Math.max(0, params.textWeight);
-  const weightSum = vectorWeight + textWeight;
-  const normalizedVectorWeight = weightSum > 0 ? vectorWeight / weightSum : 0.7;
-  const normalizedTextWeight = weightSum > 0 ? textWeight / weightSum : 0.3;
+  for (let rank = 0; rank < params.keyword.length; rank += 1) {
+    const result = params.keyword[rank];
+    if (!result) {
+      continue;
+    }
+    upsertRank(result, { rank, weight: keywordWeight, listType: "keyword" });
+  }
 
   return Array.from(byId.values())
-    .map(({ vectorScore, bm25Score, ...result }) => ({
+    .map(({ vectorScore, bm25Score, rrfScore, topRank, ...result }) => ({
       ...result,
       vectorScore,
       bm25Score,
-      score: normalizedVectorWeight * vectorScore + normalizedTextWeight * bm25Score
+      score: applyTopRankBonus(rrfScore, topRank)
     }))
     .sort((a, b) => b.score - a.score);
+}
+
+function applyTopRankBonus(score: number, topRank: number): number {
+  if (topRank === 0) {
+    return score + DEFAULT_RRF_TOP1_BONUS;
+  }
+  if (topRank <= 2) {
+    return score + DEFAULT_RRF_TOP3_BONUS;
+  }
+  return score;
 }
 
 function keyForResult(result: Pick<SearchResult, "path" | "startLine" | "endLine">): string {

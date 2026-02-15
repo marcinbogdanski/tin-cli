@@ -244,6 +244,35 @@ describe("tin CLI integration", () => {
     assert.ok(results.some((r) => r.path === "docs/nested/deep.md"));
   });
 
+  it("uses qmd-like default result limits (5 human, 20 json)", () => {
+    for (let i = 0; i < 30; i += 1) {
+      writeFileSync(join(workspace, "docs", `bulk-${i}.md`), `# Alpha ${i}\n\nalpha keyword ${i}\n`);
+    }
+
+    assert.equal(runTin(["init"], workspace).code, 0);
+    assert.equal(runTin(["index"], workspace).code, 0);
+
+    const searchJson = runTin(["search", "alpha", "--json"], workspace);
+    assert.equal(searchJson.code, 0, searchJson.stderr);
+    const jsonResults = JSON.parse(searchJson.stdout) as Array<{ path: string }>;
+    assert.equal(jsonResults.length, 20);
+
+    const searchHuman = runTin(["search", "alpha"], workspace);
+    assert.equal(searchHuman.code, 0, searchHuman.stderr);
+    const humanHeaders = searchHuman.stdout.match(/^=== /gm) ?? [];
+    assert.equal(humanHeaders.length, 5);
+
+    const queryJson = runTin(["query", "alpha", "--json"], workspace);
+    assert.equal(queryJson.code, 0, queryJson.stderr);
+    const queryJsonResults = JSON.parse(queryJson.stdout) as Array<{ path: string }>;
+    assert.equal(queryJsonResults.length, 20);
+
+    const queryHuman = runTin(["query", "alpha"], workspace);
+    assert.equal(queryHuman.code, 0, queryHuman.stderr);
+    const queryHumanHeaders = queryHuman.stdout.match(/^=== /gm) ?? [];
+    assert.equal(queryHumanHeaders.length, 5);
+  });
+
   it("prints status with embedding config sources", () => {
     assert.equal(runTin(["init"], workspace).code, 0);
     assert.equal(runTin(["index"], workspace).code, 0);
@@ -309,6 +338,27 @@ describe("tin CLI integration", () => {
       const statusJson = JSON.parse(status.stdout) as { embeddedChunks: number; needsEmbedding: number };
       assert.ok(statusJson.embeddedChunks >= 2);
       assert.equal(statusJson.needsEmbedding, 0);
+    });
+  });
+
+  it("uses qmd-like vsearch default min-score (0.3)", async () => {
+    await withMockEmbeddingServer(async (env) => {
+      assert.equal((await runTinAsync(["init"], workspace, env)).code, 0);
+      assert.equal((await runTinAsync(["index"], workspace, env)).code, 0);
+
+      const defaultThreshold = await runTinAsync(["vsearch", "unknown term", "--json"], workspace, env);
+      assert.equal(defaultThreshold.code, 0, defaultThreshold.stderr);
+      const defaultResults = JSON.parse(defaultThreshold.stdout) as Array<{ path: string }>;
+      assert.equal(defaultResults.length, 0);
+
+      const explicitZero = await runTinAsync(
+        ["vsearch", "unknown term", "--json", "--min-score", "0"],
+        workspace,
+        env
+      );
+      assert.equal(explicitZero.code, 0, explicitZero.stderr);
+      const zeroResults = JSON.parse(explicitZero.stdout) as Array<{ path: string }>;
+      assert.ok(zeroResults.length >= 1);
     });
   });
 

@@ -339,8 +339,7 @@ export function searchVector(
     }
 
     const cosine = cosineSimilarity(queryVector, vec);
-    const normalized = (cosine + 1) / 2;
-    if (normalized < opts.minScore) {
+    if (cosine < opts.minScore) {
       continue;
     }
 
@@ -351,7 +350,7 @@ export function searchVector(
       endLine: row.end_line,
       chunkNumber: row.chunk_index + 1,
       chunkCount: row.chunk_count,
-      score: normalized,
+      score: cosine,
       snippet: opts.fullChunk ? row.content : makeSnippet(row.content, 0),
       source: "vector"
     });

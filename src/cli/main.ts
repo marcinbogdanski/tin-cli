@@ -1,5 +1,10 @@
 import { Command, InvalidArgumentError } from "commander";
-import { DEFAULT_MAX_RESULTS, DEFAULT_MIN_SCORE } from "../core/constants.js";
+import {
+  DEFAULT_HUMAN_MAX_RESULTS,
+  DEFAULT_MACHINE_MAX_RESULTS,
+  DEFAULT_MIN_SCORE,
+  DEFAULT_VSEARCH_MIN_SCORE
+} from "../core/constants.js";
 import { loadConfig } from "../core/config.js";
 import { TinError } from "../core/errors.js";
 import { indexProject } from "../core/indexer.js";
@@ -86,17 +91,19 @@ export async function run(argv: string[] = process.argv): Promise<void> {
     .argument("<query>", "Search query")
     .option("--json", "Output JSON")
     .option("--files", "Output file paths only")
-    .option("-n, --max-results <n>", "Max results", parsePositiveInt, DEFAULT_MAX_RESULTS)
-    .option("--min-score <score>", "Minimum score", parseNonNegativeFloat, DEFAULT_MIN_SCORE)
+    .option("-n, --max-results <n>", "Max results", parsePositiveInt)
+    .option("--min-score <score>", "Minimum score", parseNonNegativeFloat)
     .action(
       async (
         query: string,
-        opts: { json?: boolean; files?: boolean; maxResults: number; minScore: number }
+        opts: { json?: boolean; files?: boolean; maxResults?: number; minScore?: number }
       ) => {
         if (opts.json && opts.files) {
           throw new TinError("Choose one output mode: --json or --files", 2);
         }
 
+        const maxResults = resolveMaxResultsOption(opts);
+        const minScore = opts.minScore ?? DEFAULT_MIN_SCORE;
         const project = requireProject(process.cwd());
         const refresh = await refreshBeforeSearch(project);
         if (!opts.json && !opts.files) {
@@ -104,8 +111,8 @@ export async function run(argv: string[] = process.argv): Promise<void> {
         }
         const highlight = !opts.json && !opts.files ? getHumanHighlightMarkers() : undefined;
         const results = searchProject(project, query, {
-          limit: opts.maxResults,
-          minScore: opts.minScore,
+          limit: maxResults,
+          minScore,
           fullChunk: true,
           highlight
         });
@@ -128,25 +135,27 @@ export async function run(argv: string[] = process.argv): Promise<void> {
     .argument("<query>", "Search query")
     .option("--json", "Output JSON")
     .option("--files", "Output file paths only")
-    .option("-n, --max-results <n>", "Max results", parsePositiveInt, DEFAULT_MAX_RESULTS)
-    .option("--min-score <score>", "Minimum score", parseNonNegativeFloat, DEFAULT_MIN_SCORE)
+    .option("-n, --max-results <n>", "Max results", parsePositiveInt)
+    .option("--min-score <score>", "Minimum score", parseNonNegativeFloat)
     .action(
       async (
         query: string,
-        opts: { json?: boolean; files?: boolean; maxResults: number; minScore: number }
+        opts: { json?: boolean; files?: boolean; maxResults?: number; minScore?: number }
       ) => {
         if (opts.json && opts.files) {
           throw new TinError("Choose one output mode: --json or --files", 2);
         }
 
+        const maxResults = resolveMaxResultsOption(opts);
+        const minScore = opts.minScore ?? DEFAULT_VSEARCH_MIN_SCORE;
         const project = requireProject(process.cwd());
         const refresh = await refreshBeforeSearch(project);
         if (!opts.json && !opts.files) {
           printRefreshSummaryHuman(refresh);
         }
         const results = await vectorSearchProject(project, query, {
-          limit: opts.maxResults,
-          minScore: opts.minScore,
+          limit: maxResults,
+          minScore,
           fullChunk: true
         });
 
@@ -169,8 +178,8 @@ export async function run(argv: string[] = process.argv): Promise<void> {
     .option("--json", "Output JSON")
     .option("--files", "Output file paths only")
     .option("--no-rerank", "Disable rerank even if configured")
-    .option("-n, --max-results <n>", "Max results", parsePositiveInt, DEFAULT_MAX_RESULTS)
-    .option("--min-score <score>", "Minimum score", parseNonNegativeFloat, DEFAULT_MIN_SCORE)
+    .option("-n, --max-results <n>", "Max results", parsePositiveInt)
+    .option("--min-score <score>", "Minimum score", parseNonNegativeFloat)
     .action(
       async (
         query: string,
@@ -178,14 +187,16 @@ export async function run(argv: string[] = process.argv): Promise<void> {
           json?: boolean;
           files?: boolean;
           rerank?: boolean;
-          maxResults: number;
-          minScore: number;
+          maxResults?: number;
+          minScore?: number;
         }
       ) => {
         if (opts.json && opts.files) {
           throw new TinError("Choose one output mode: --json or --files", 2);
         }
 
+        const maxResults = resolveMaxResultsOption(opts);
+        const minScore = opts.minScore ?? DEFAULT_MIN_SCORE;
         const project = requireProject(process.cwd());
         const refresh = await refreshBeforeSearch(project);
         if (!opts.json && !opts.files) {
@@ -193,8 +204,8 @@ export async function run(argv: string[] = process.argv): Promise<void> {
         }
         const highlight = !opts.json && !opts.files ? getHumanHighlightMarkers() : undefined;
         const output = await queryProject(project, query, {
-          limit: opts.maxResults,
-          minScore: opts.minScore,
+          limit: maxResults,
+          minScore,
           useRerank: opts.rerank !== false,
           highlight
         });
@@ -232,6 +243,16 @@ export async function run(argv: string[] = process.argv): Promise<void> {
   } catch (err) {
     handleError(err);
   }
+}
+
+function resolveMaxResultsOption(opts: { json?: boolean; files?: boolean; maxResults?: number }): number {
+  if (opts.maxResults) {
+    return opts.maxResults;
+  }
+  if (opts.json || opts.files) {
+    return DEFAULT_MACHINE_MAX_RESULTS;
+  }
+  return DEFAULT_HUMAN_MAX_RESULTS;
 }
 
 async function refreshBeforeSearch(

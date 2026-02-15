@@ -11,9 +11,12 @@ export const DEFAULT_EXCLUDE_GLOBS = [
   "build/**"
 ];
 
-export const DEFAULT_MAX_RESULTS = 10;
+export const DEFAULT_HUMAN_MAX_RESULTS = 5;
+export const DEFAULT_MACHINE_MAX_RESULTS = 20;
 export const DEFAULT_MIN_SCORE = 0;
+export const DEFAULT_VSEARCH_MIN_SCORE = 0.3;
 export const DEFAULT_EMBEDDING_MODEL = "text-embedding-3-small";
-export const DEFAULT_HYBRID_CANDIDATE_MULTIPLIER = 4;
-export const DEFAULT_HYBRID_VECTOR_WEIGHT = 0.7;
-export const DEFAULT_HYBRID_TEXT_WEIGHT = 0.3;
+export const DEFAULT_HYBRID_CANDIDATE_LIMIT = 40;
+export const DEFAULT_RRF_K = 60;
+export const DEFAULT_RRF_TOP1_BONUS = 0.05;
+export const DEFAULT_RRF_TOP3_BONUS = 0.02;

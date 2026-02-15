@@ -18,15 +18,17 @@ Local CLI search for project documents with BM25, vector search, and hybrid retr
 
 - `tin init`
 - `tin index` (incremental using mtime + hash; always runs embedding pass when configured)
-- `tin search <query>` (BM25 + snippets)
+- `tin search <query>` (BM25)
 - `tin status`
 - `tin vsearch <query>` (requires embedding API env)
 - `tin query <query>` (hybrid BM25+vector with optional rerank)
-- `search`/`vsearch`/`query` currently force a full index refresh before searching; when embedding is configured they also force full re-embedding
+- `search`/`vsearch`/`query` refresh index before searching (incremental metadata + embedding gap fill)
+- Default result limits: `5` (human), `20` (`--json`/`--files`)
+- `vsearch` default minimum score: `0.3` (override via `--min-score`)
 - Output modes:
   - human
   - `--json`
-  - `--files` (for `search` and `vsearch`)
+  - `--files`
 - Project config at `.tin/config.json` (include/exclude globs)
 - SQLite index at `.tin/index.sqlite` (built-in `node:sqlite`)
 - Embedding support (`/embeddings` API):
